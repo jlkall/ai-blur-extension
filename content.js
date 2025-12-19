@@ -345,34 +345,7 @@ function blurWithCTA(el, score, confidence = null) {
   span.style.position = "relative";
   span.style.zIndex = "1";
 
-  // Confidence badge in corner (only if not showing certainty blob)
-  if (confidence !== null && confidence !== undefined && !showCertainty) {
-    const confidenceBadge = document.createElement("div");
-    const confidencePercent = Math.round(confidence * 10000) / 100; // Round to nearest 100th
-    confidenceBadge.textContent = confidencePercent + "%";
-    
-    // Positioning - top right corner
-    confidenceBadge.style.position = "absolute";
-    confidenceBadge.style.top = "8px";
-    confidenceBadge.style.right = "8px";
-    confidenceBadge.style.zIndex = "10";
-    confidenceBadge.style.pointerEvents = "none";
-    
-    // Styling
-    confidenceBadge.style.fontFamily = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
-    confidenceBadge.style.fontSize = "12px";
-    confidenceBadge.style.fontWeight = "600";
-    confidenceBadge.style.color = "#ffffff";
-    confidenceBadge.style.background = "rgba(0, 0, 0, 0.7)";
-    confidenceBadge.style.backdropFilter = "blur(8px)";
-    confidenceBadge.style.padding = "4px 8px";
-    confidenceBadge.style.borderRadius = "12px";
-    confidenceBadge.style.boxShadow = "0 2px 8px rgba(0, 0, 0, 0.3)";
-    
-    el.appendChild(confidenceBadge);
-  }
-  
-  // Add certainty blob if enabled
+  // Only show badges if certainty toggle is ON
   if (showCertainty) {
     addCertaintyBlob(el, score, confidence);
   }
@@ -422,39 +395,14 @@ function outlineWithCTA(el, score, confidence = null) {
   el.style.isolation = "isolate";
   el.style.zIndex = "1";
 
-  // Add green outline box
-  el.style.border = "3px solid rgba(76, 175, 80, 0.8)";
-  el.style.borderRadius = "8px";
+  // Add thin green outline box
+  el.style.border = "1px solid rgba(76, 175, 80, 0.8)";
+  el.style.borderRadius = "4px";
   el.style.padding = "8px";
-  el.style.backgroundColor = "rgba(76, 175, 80, 0.1)";
-  el.style.boxShadow = "0 0 0 1px rgba(76, 175, 80, 0.3), 0 2px 8px rgba(76, 175, 80, 0.2)";
+  el.style.backgroundColor = "transparent";
+  el.style.boxShadow = "none";
 
-  // Confidence badge in corner (only if not showing certainty blob)
-  if (confidence !== null && confidence !== undefined && !showCertainty) {
-    const confidenceBadge = document.createElement("div");
-    const confidencePercent = Math.round(confidence * 10000) / 100;
-    confidenceBadge.textContent = confidencePercent + "%";
-    
-    confidenceBadge.style.position = "absolute";
-    confidenceBadge.style.top = "8px";
-    confidenceBadge.style.right = "8px";
-    confidenceBadge.style.zIndex = "10";
-    confidenceBadge.style.pointerEvents = "none";
-    
-    confidenceBadge.style.fontFamily = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
-    confidenceBadge.style.fontSize = "12px";
-    confidenceBadge.style.fontWeight = "600";
-    confidenceBadge.style.color = "#ffffff";
-    confidenceBadge.style.background = "rgba(76, 175, 80, 0.9)";
-    confidenceBadge.style.backdropFilter = "blur(8px)";
-    confidenceBadge.style.padding = "4px 8px";
-    confidenceBadge.style.borderRadius = "12px";
-    confidenceBadge.style.boxShadow = "0 2px 8px rgba(0, 0, 0, 0.3)";
-    
-    el.appendChild(confidenceBadge);
-  }
-  
-  // Add certainty blob if enabled
+  // Only show badges if certainty toggle is ON
   if (showCertainty) {
     addCertaintyBlob(el, score, confidence);
   }
@@ -530,34 +478,7 @@ function blurImageWithConfidence(img, score, confidence = null) {
     container = wrapper;
   }
   
-  // Add confidence badge in corner (only if not showing certainty blob)
-  if (confidence !== null && confidence !== undefined && !showCertainty) {
-    const confidenceBadge = document.createElement("div");
-    const confidencePercent = Math.round(confidence * 10000) / 100; // Round to nearest 100th
-    confidenceBadge.textContent = confidencePercent + "%";
-    
-    // Positioning - top right corner
-    confidenceBadge.style.position = "absolute";
-    confidenceBadge.style.top = "8px";
-    confidenceBadge.style.right = "8px";
-    confidenceBadge.style.zIndex = "10";
-    confidenceBadge.style.pointerEvents = "none";
-    
-    // Styling
-    confidenceBadge.style.fontFamily = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
-    confidenceBadge.style.fontSize = "12px";
-    confidenceBadge.style.fontWeight = "600";
-    confidenceBadge.style.color = "#ffffff";
-    confidenceBadge.style.background = "rgba(0, 0, 0, 0.7)";
-    confidenceBadge.style.backdropFilter = "blur(8px)";
-    confidenceBadge.style.padding = "4px 8px";
-    confidenceBadge.style.borderRadius = "12px";
-    confidenceBadge.style.boxShadow = "0 2px 8px rgba(0, 0, 0, 0.3)";
-    
-    container.appendChild(confidenceBadge);
-  }
-  
-  // Add certainty blob if enabled
+  // Only show badges if certainty toggle is ON
   if (showCertainty) {
     addCertaintyBlob(container, score, confidence);
   }
@@ -624,40 +545,15 @@ function outlineImageWithConfidence(img, score, confidence = null) {
     container.style.zIndex = "1";
   }
   
-  // Add green outline box around image
-  container.style.border = "3px solid rgba(76, 175, 80, 0.8)";
-  container.style.borderRadius = "8px";
-  container.style.padding = "4px";
-  container.style.backgroundColor = "rgba(76, 175, 80, 0.1)";
-  container.style.boxShadow = "0 0 0 1px rgba(76, 175, 80, 0.3), 0 2px 8px rgba(76, 175, 80, 0.2)";
+  // Add thin green outline box around image
+  container.style.border = "1px solid rgba(76, 175, 80, 0.8)";
+  container.style.borderRadius = "4px";
+  container.style.padding = "2px";
+  container.style.backgroundColor = "transparent";
+  container.style.boxShadow = "none";
   container.style.cursor = "pointer";
   
-  // Add confidence badge in corner (only if not showing certainty blob)
-  if (confidence !== null && confidence !== undefined && !showCertainty) {
-    const confidenceBadge = document.createElement("div");
-    const confidencePercent = Math.round(confidence * 10000) / 100;
-    confidenceBadge.textContent = confidencePercent + "%";
-    
-    confidenceBadge.style.position = "absolute";
-    confidenceBadge.style.top = "8px";
-    confidenceBadge.style.right = "8px";
-    confidenceBadge.style.zIndex = "10";
-    confidenceBadge.style.pointerEvents = "none";
-    
-    confidenceBadge.style.fontFamily = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
-    confidenceBadge.style.fontSize = "12px";
-    confidenceBadge.style.fontWeight = "600";
-    confidenceBadge.style.color = "#ffffff";
-    confidenceBadge.style.background = "rgba(76, 175, 80, 0.9)";
-    confidenceBadge.style.backdropFilter = "blur(8px)";
-    confidenceBadge.style.padding = "4px 8px";
-    confidenceBadge.style.borderRadius = "12px";
-    confidenceBadge.style.boxShadow = "0 2px 8px rgba(0, 0, 0, 0.3)";
-    
-    container.appendChild(confidenceBadge);
-  }
-  
-  // Add certainty blob if enabled
+  // Only show badges if certainty toggle is ON
   if (showCertainty) {
     addCertaintyBlob(container, score, confidence);
   }
@@ -671,8 +567,8 @@ function outlineImageWithConfidence(img, score, confidence = null) {
   // Toggle outline on click
   container.addEventListener("click", function() {
     if (container.style.border === "none" || container.style.border === "") {
-      container.style.border = "3px solid rgba(76, 175, 80, 0.8)";
-      container.style.backgroundColor = "rgba(76, 175, 80, 0.1)";
+      container.style.border = "1px solid rgba(76, 175, 80, 0.8)";
+      container.style.backgroundColor = "transparent";
     } else {
       container.style.border = "none";
       container.style.backgroundColor = "transparent";
