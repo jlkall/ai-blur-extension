@@ -417,8 +417,8 @@ function outlineWithCTA(el, score, confidence = null) {
   el.style.cursor = "pointer";
   el.addEventListener("click", function () {
     if (el.style.border === "none" || el.style.border === "") {
-      el.style.border = "3px solid rgba(76, 175, 80, 0.8)";
-      el.style.backgroundColor = "rgba(76, 175, 80, 0.1)";
+      el.style.border = "1px solid rgba(76, 175, 80, 0.8)";
+      el.style.backgroundColor = "transparent";
     } else {
       el.style.border = "none";
       el.style.backgroundColor = "transparent";
