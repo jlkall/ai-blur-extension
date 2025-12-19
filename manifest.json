@@ -7,7 +7,9 @@
     "default_popup": "popup.html",
     "default_title": "CloseAI"
   },
-  "permissions": [],
+  "permissions": [
+    "storage"
+  ],
   "web_accessible_resources": [
     {
       "resources": ["ml/*"],

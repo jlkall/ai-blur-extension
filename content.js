@@ -4,6 +4,36 @@ const THRESHOLD = 0.25;
 const IMAGE_THRESHOLD = 0.40; // Threshold for AI image detection (with metadata, can be slightly lower)
 const BLUR_PX = 8;
 
+// Extension enabled state (default to true)
+let extensionEnabled = true;
+
+// Load enabled state from storage
+chrome.storage.local.get(['enabled'], (result) => {
+  extensionEnabled = result.enabled !== false; // Default to true
+  if (!extensionEnabled) {
+    console.log("[CloseAI] Extension is disabled");
+  }
+});
+
+// Listen for toggle messages from popup
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.action === 'toggle') {
+    extensionEnabled = message.enabled;
+    console.log("[CloseAI] Extension toggled:", extensionEnabled ? "enabled" : "disabled");
+    
+    if (!extensionEnabled) {
+      // Remove all blur effects when disabled
+      removeAllBlurs();
+    } else {
+      // Re-scan when re-enabled
+      scan(document.body);
+      scanImages(document.body);
+    }
+    sendResponse({ success: true });
+  }
+  return true;
+});
+
 // Cache for scores to avoid recomputation
 const scoreCache = new Map();
 const CACHE_SIZE = 1000;
@@ -272,6 +302,8 @@ function blurImageWithConfidence(img, score, confidence = null) {
  * Scan and process images selectively
  */
 async function scanImages(root) {
+  if (!extensionEnabled) return;
+  
   const images = Array.from(root.querySelectorAll("img:not([data-ai-scanned])"));
   
   // Filter and prioritize images
@@ -350,9 +382,40 @@ async function scanImages(root) {
 }
 
 /**
+ * Remove all blur effects from the page
+ */
+function removeAllBlurs() {
+  // Remove text blurs
+  const blurredTexts = document.querySelectorAll('[data-ai-blur="true"]');
+  blurredTexts.forEach(el => {
+    el.dataset.aiBlur = "false";
+    const span = el.querySelector('span[data-blurred="true"]');
+    if (span) {
+      span.style.filter = "none";
+      span.dataset.blurred = "false";
+    }
+    // Remove confidence badges
+    const badges = el.querySelectorAll('div[style*="top: 8px; right: 8px;"]');
+    badges.forEach(badge => badge.remove());
+  });
+
+  // Remove image blurs
+  const blurredImages = document.querySelectorAll('img[data-ai-blur="true"]');
+  blurredImages.forEach(img => {
+    img.dataset.aiBlur = "false";
+    img.style.filter = "none";
+    // Remove confidence badges
+    const badges = img.parentElement?.querySelectorAll('div[style*="top: 8px; right: 8px;"]');
+    badges?.forEach(badge => badge.remove());
+  });
+}
+
+/**
  * Enhanced scanning with async ML scoring
  */
 async function scan(root) {
+  if (!extensionEnabled) return;
+  
   const elements = root.querySelectorAll("p, li, div[class*='content'], div[class*='text'], article");
 
   for (const el of elements) {
@@ -411,6 +474,8 @@ async function scan(root) {
 
 // Observe SPA / hydration
 const observer = new MutationObserver(function (mutations) {
+  if (!extensionEnabled) return;
+  
   for (const m of mutations) {
     for (const n of m.addedNodes) {
       if (n.nodeType === Node.ELEMENT_NODE) {
@@ -424,21 +489,27 @@ const observer = new MutationObserver(function (mutations) {
   }
 });
 
-// Boot
-if (document.body) {
-  scan(document.body);
-  scanImages(document.body);
-  observer.observe(document.body, {
-    childList: true,
-    subtree: true
-  });
-} else {
-  document.addEventListener("DOMContentLoaded", () => {
-    scan(document.body);
-    scanImages(document.body);
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true
-    });
-  });
-}
+// Boot - check enabled state first
+chrome.storage.local.get(['enabled'], (result) => {
+  extensionEnabled = result.enabled !== false; // Default to true
+  
+  if (extensionEnabled) {
+    if (document.body) {
+      scan(document.body);
+      scanImages(document.body);
+      observer.observe(document.body, {
+        childList: true,
+        subtree: true
+      });
+    } else {
+      document.addEventListener("DOMContentLoaded", () => {
+        scan(document.body);
+        scanImages(document.body);
+        observer.observe(document.body, {
+          childList: true,
+          subtree: true
+        });
+      });
+    }
+  }
+});
