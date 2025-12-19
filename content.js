@@ -208,6 +208,151 @@ function blurWithCTA(el, score) {
 }
 
 /**
+ * Replace AI image with slop (crayon drawing)
+ */
+function replaceImageWithSlop(img, score) {
+  if (img.dataset.aiReplaced === "true") return;
+  if (!img.complete || img.naturalWidth === 0) return;
+  
+  img.dataset.aiReplaced = "true";
+  img.dataset.originalSrc = img.src;
+  
+  // Generate slop image matching original dimensions
+  const width = img.naturalWidth || img.width || 400;
+  const height = img.naturalHeight || img.height || 300;
+  
+  if (typeof generateSlopImage === 'function') {
+    const slopDataUrl = generateSlopImage(width, height);
+    img.src = slopDataUrl;
+    
+    // Add overlay with CTA
+    const container = img.parentElement;
+    if (container && container.style.position !== 'relative') {
+      container.style.position = 'relative';
+    }
+    
+    // Create overlay button
+    const overlay = document.createElement("div");
+    overlay.style.position = "absolute";
+    overlay.style.top = "50%";
+    overlay.style.left = "50%";
+    overlay.style.transform = "translate(-50%, -50%)";
+    overlay.style.zIndex = "9999";
+    overlay.style.pointerEvents = "none";
+    
+    const button = document.createElement("a");
+    button.textContent = "Go touch grass 🌱";
+    button.href = GRASS_URL;
+    button.target = "_blank";
+    button.rel = "noopener noreferrer";
+    
+    // Apply same styling as text CTA
+    button.style.fontFamily = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
+    button.style.fontSize = "13px";
+    button.style.fontWeight = "500";
+    button.style.letterSpacing = "0.01em";
+    button.style.color = "#ffffff";
+    button.style.textDecoration = "none";
+    button.style.whiteSpace = "nowrap";
+    button.style.padding = "8px 20px";
+    button.style.borderRadius = "20px";
+    button.style.border = "none";
+    button.style.outline = "none";
+    button.style.background = "linear-gradient(135deg, #22c55e 0%, #16a34a 100%)";
+    button.style.boxShadow = "0 4px 12px rgba(34, 197, 94, 0.3), 0 2px 4px rgba(0, 0, 0, 0.1)";
+    button.style.backdropFilter = "blur(10px)";
+    button.style.transition = "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)";
+    button.style.cursor = "pointer";
+    button.style.pointerEvents = "auto";
+    
+    // Hover effects
+    button.addEventListener("mouseenter", function() {
+      button.style.transform = "scale(1.05)";
+      button.style.boxShadow = "0 6px 16px rgba(34, 197, 94, 0.4), 0 4px 8px rgba(0, 0, 0, 0.15)";
+    });
+    
+    button.addEventListener("mouseleave", function() {
+      button.style.transform = "scale(1)";
+      button.style.boxShadow = "0 4px 12px rgba(34, 197, 94, 0.3), 0 2px 4px rgba(0, 0, 0, 0.1)";
+    });
+    
+    overlay.appendChild(button);
+    
+    // Add click handler to restore original
+    img.addEventListener("click", function() {
+      if (img.dataset.originalSrc) {
+        img.src = img.dataset.originalSrc;
+        if (overlay.parentNode) {
+          overlay.parentNode.removeChild(overlay);
+        }
+        img.dataset.aiReplaced = "false";
+      }
+    });
+    
+    // Insert overlay
+    if (container && container.style.position === 'relative') {
+      container.appendChild(overlay);
+    } else {
+      // Fallback: wrap image
+      const wrapper = document.createElement("div");
+      wrapper.style.position = "relative";
+      wrapper.style.display = "inline-block";
+      if (img.parentNode) {
+        img.parentNode.insertBefore(wrapper, img);
+        wrapper.appendChild(img);
+        wrapper.appendChild(overlay);
+      }
+    }
+  }
+}
+
+/**
+ * Scan and process images
+ */
+async function scanImages(root) {
+  const images = root.querySelectorAll("img:not([data-ai-scanned])");
+  
+  for (const img of images) {
+    // Skip very small images (icons, avatars)
+    if (img.width < 50 || img.height < 50) {
+      img.dataset.aiScanned = "true";
+      continue;
+    }
+    
+    // Skip if already processed
+    if (img.dataset.aiReplaced === "true") continue;
+    
+    // Wait for image to load
+    if (!img.complete) {
+      img.addEventListener("load", async function() {
+        img.dataset.aiScanned = "true";
+        if (typeof detectAIImage !== 'undefined') {
+          const result = await detectAIImage(img);
+          if (result && result.score >= IMAGE_THRESHOLD) {
+            replaceImageWithSlop(img, result.score);
+          }
+        }
+      }, { once: true });
+      continue;
+    }
+    
+    img.dataset.aiScanned = "true";
+    
+    // Detect AI image
+    if (typeof detectAIImage !== 'undefined') {
+      try {
+        const result = await detectAIImage(img);
+        if (result && result.score >= IMAGE_THRESHOLD) {
+          replaceImageWithSlop(img, result.score);
+        }
+      } catch (error) {
+        console.warn("[AI BLUR] Image detection error:", error);
+      }
+    }
+  }
+}
+
+/**
  * Enhanced scanning with async ML scoring
  */
 async function scan(root) {
@@ -246,6 +391,9 @@ async function scan(root) {
       });
     }
   }
+  
+  // Also scan images in the same root
+  scanImages(root);
 }
 
 // Observe SPA / hydration
@@ -254,7 +402,10 @@ const observer = new MutationObserver(function (mutations) {
     for (const n of m.addedNodes) {
       if (n.nodeType === Node.ELEMENT_NODE) {
         // Debounce scanning
-        setTimeout(() => scan(n), 100);
+        setTimeout(() => {
+          scan(n);
+          scanImages(n);
+        }, 100);
       }
     }
   }
@@ -263,6 +414,7 @@ const observer = new MutationObserver(function (mutations) {
 // Boot
 if (document.body) {
   scan(document.body);
+  scanImages(document.body);
   observer.observe(document.body, {
     childList: true,
     subtree: true
@@ -270,6 +422,7 @@ if (document.body) {
 } else {
   document.addEventListener("DOMContentLoaded", () => {
     scan(document.body);
+    scanImages(document.body);
     observer.observe(document.body, {
       childList: true,
       subtree: true
