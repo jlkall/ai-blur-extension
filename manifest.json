@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "AI Blur MVP",
+  "name": "AI Blur - Detect & Blur AI Content",
   "version": "0.3.0",
-  "description": "Blurs AI-generated content using local ML",
+  "description": "Detects and blurs AI-generated text and images using advanced ML models. Shows confidence ratings.",
   "permissions": [],
   "web_accessible_resources": [
     {
