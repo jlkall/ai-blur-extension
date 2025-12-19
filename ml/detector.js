@@ -33,7 +33,11 @@ async function loadModel() {
     );
     return session;
   } catch (error) {
-    console.warn("[AI BLUR] Failed to load ML model, using statistical features only:", error.message);
+    // Silently fail - we have statistical fallback, no need to spam console
+    // Only log if it's not a WASM/backend error (those are expected)
+    if (!error.message.includes('backend') && !error.message.includes('WASM') && !error.message.includes('wasm')) {
+      console.warn("[AI BLUR] Failed to load ML model:", error.message);
+    }
     session = false; // Mark as failed so we don't keep trying
     return null;
   }
