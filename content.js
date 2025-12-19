@@ -3,7 +3,6 @@ console.log("[AI BLUR] Enhanced ML detection loaded");
 const THRESHOLD = 0.25;
 const IMAGE_THRESHOLD = 0.40; // Threshold for AI image detection (with metadata, can be slightly lower)
 const BLUR_PX = 8;
-const GRASS_URL = "https://www.google.com/search?q=grass+nature&tbm=isch";
 
 // Cache for scores to avoid recomputation
 const scoreCache = new Map();
@@ -87,36 +86,53 @@ function scoreText(text) {
  * Score text asynchronously with ML (for better accuracy)
  */
 async function scoreTextAsync(text) {
-  if (!text || text.trim().length < 20) return 0;
+  if (!text || text.trim().length < 20) return { score: 0, confidence: null };
   
   // Check cache
   const cacheKey = text.substring(0, 100);
   if (scoreCache.has(cacheKey)) {
-    return scoreCache.get(cacheKey);
+    const cached = scoreCache.get(cacheKey);
+    // Handle both old format (number) and new format (object)
+    if (typeof cached === 'object' && cached !== null && cached.score !== undefined) {
+      return cached;
+    }
+    // Old format - just a number
+    return { score: typeof cached === 'number' ? cached : 0.5, confidence: null };
   }
   
   try {
     if (typeof detectAIGenerated !== 'undefined') {
       const result = await detectAIGenerated(text);
-      const score = result ? result.score : (typeof scoreParagraphSync === 'function' ? scoreParagraphSync(text) : 0.5);
-      
-      // Cache the score
-      if (scoreCache.size >= CACHE_SIZE) {
-        const firstKey = scoreCache.keys().next().value;
-        scoreCache.delete(firstKey);
+      if (result && typeof result === 'object' && result.score !== undefined) {
+        // Return object with score and confidence
+        const score = result.score;
+        const confidence = result.confidence || null;
+        
+        // Cache the result
+        if (scoreCache.size >= CACHE_SIZE) {
+          const firstKey = scoreCache.keys().next().value;
+          scoreCache.delete(firstKey);
+        }
+        scoreCache.set(cacheKey, { score, confidence });
+        
+        return { score, confidence };
+      } else {
+        // Fallback for old API
+        const score = result || (typeof scoreParagraphSync === 'function' ? scoreParagraphSync(text) : 0.5);
+        const cachedResult = { score, confidence: null };
+        scoreCache.set(cacheKey, cachedResult);
+        return cachedResult;
       }
-      scoreCache.set(cacheKey, score);
-      
-      return score;
     }
     } catch (error) {
       console.warn("[AI BLUR] Async scoring error:", error);
     }
   
-  return typeof scoreParagraphSync === 'function' ? scoreParagraphSync(text) : 0.5;
+  const fallbackScore = typeof scoreParagraphSync === 'function' ? scoreParagraphSync(text) : 0.5;
+  return { score: fallbackScore, confidence: null };
 }
 
-function blurWithCTA(el, score) {
+function blurWithCTA(el, score, confidence = null) {
   if (el.dataset.aiBlur === "true") return;
   if (!el.innerText || el.innerText.trim().length < 40) return;
 
@@ -135,64 +151,32 @@ function blurWithCTA(el, score) {
   span.style.position = "relative";
   span.style.zIndex = "1";
 
-  // CTA button - clean, modern design
-  const button = document.createElement("a");
-  button.textContent = "Go touch grass 🌱";
-  button.href = GRASS_URL;
-  button.target = "_blank";
-  button.rel = "noopener noreferrer";
-
-  // Positioning - contained within parent
-  button.style.position = "absolute";
-  button.style.top = "50%";
-  button.style.left = "50%";
-  button.style.transform = "translate(-50%, -50%)";
-  button.style.zIndex = "10"; // Lower z-index, only relative to parent
-  button.style.pointerEvents = "auto"; // Ensure button is clickable
-  
-  // Typography
-  button.style.fontFamily = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
-  button.style.fontSize = "13px";
-  button.style.fontWeight = "500";
-  button.style.letterSpacing = "0.01em";
-  button.style.color = "#ffffff";
-  button.style.textDecoration = "none";
-  button.style.whiteSpace = "nowrap";
-  
-  // Layout
-  button.style.padding = "8px 20px";
-  button.style.borderRadius = "20px";
-  button.style.border = "none";
-  button.style.outline = "none";
-  
-  // Colors and effects
-  button.style.background = "linear-gradient(135deg, #22c55e 0%, #16a34a 100%)";
-  button.style.boxShadow = "0 4px 12px rgba(34, 197, 94, 0.3), 0 2px 4px rgba(0, 0, 0, 0.1)";
-  button.style.backdropFilter = "blur(10px)";
-  
-  // Transitions
-  button.style.transition = "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)";
-  button.style.cursor = "pointer";
-  
-  // Hover effects
-  button.addEventListener("mouseenter", function() {
-    button.style.transform = "translate(-50%, -50%) scale(1.05)";
-    button.style.boxShadow = "0 6px 16px rgba(34, 197, 94, 0.4), 0 4px 8px rgba(0, 0, 0, 0.15)";
-  });
-  
-  button.addEventListener("mouseleave", function() {
-    button.style.transform = "translate(-50%, -50%) scale(1)";
-    button.style.boxShadow = "0 4px 12px rgba(34, 197, 94, 0.3), 0 2px 4px rgba(0, 0, 0, 0.1)";
-  });
-  
-  // Active state
-  button.addEventListener("mousedown", function() {
-    button.style.transform = "translate(-50%, -50%) scale(0.98)";
-  });
-  
-  button.addEventListener("mouseup", function() {
-    button.style.transform = "translate(-50%, -50%) scale(1.05)";
-  });
+  // Confidence badge in corner
+  if (confidence !== null && confidence !== undefined) {
+    const confidenceBadge = document.createElement("div");
+    const confidencePercent = Math.round(confidence * 10000) / 100; // Round to nearest 100th
+    confidenceBadge.textContent = confidencePercent + "%";
+    
+    // Positioning - top right corner
+    confidenceBadge.style.position = "absolute";
+    confidenceBadge.style.top = "8px";
+    confidenceBadge.style.right = "8px";
+    confidenceBadge.style.zIndex = "10";
+    confidenceBadge.style.pointerEvents = "none";
+    
+    // Styling
+    confidenceBadge.style.fontFamily = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
+    confidenceBadge.style.fontSize = "12px";
+    confidenceBadge.style.fontWeight = "600";
+    confidenceBadge.style.color = "#ffffff";
+    confidenceBadge.style.background = "rgba(0, 0, 0, 0.7)";
+    confidenceBadge.style.backdropFilter = "blur(8px)";
+    confidenceBadge.style.padding = "4px 8px";
+    confidenceBadge.style.borderRadius = "12px";
+    confidenceBadge.style.boxShadow = "0 2px 8px rgba(0, 0, 0, 0.3)";
+    
+    el.appendChild(confidenceBadge);
+  }
 
   // Toggle blur on text click
   span.addEventListener("click", function () {
@@ -200,118 +184,88 @@ function blurWithCTA(el, score) {
     if (isBlurred) {
       span.style.filter = "none";
       span.dataset.blurred = "false";
-      button.style.display = "none";
     } else {
       span.style.filter = "blur(" + BLUR_PX + "px)";
       span.dataset.blurred = "true";
-      button.style.display = "block";
     }
   });
 
   el.innerHTML = "";
   el.appendChild(span);
-  el.appendChild(button);
 }
 
 /**
- * Replace AI image with slop (crayon drawing)
+ * Blur AI image and show confidence rating
  */
-function replaceImageWithSlop(img, score) {
-  if (img.dataset.aiReplaced === "true") return;
+function blurImageWithConfidence(img, score, confidence = null) {
+  if (img.dataset.aiBlurred === "true") return;
   if (!img.complete || img.naturalWidth === 0) return;
   
-  img.dataset.aiReplaced = "true";
-  img.dataset.originalSrc = img.src;
+  img.dataset.aiBlurred = "true";
   
-  // Generate slop image matching original dimensions
-  const width = img.naturalWidth || img.width || 400;
-  const height = img.naturalHeight || img.height || 300;
+  // Apply blur to image
+  img.style.filter = "blur(" + BLUR_PX + "px)";
+  img.style.transition = "filter 0.15s ease";
+  img.style.cursor = "pointer";
   
-  if (typeof generateSlopImage === 'function') {
-    const slopDataUrl = generateSlopImage(width, height);
-    img.src = slopDataUrl;
-    
-    // Add overlay with CTA
-    const container = img.parentElement;
-    if (container && container.style.position !== 'relative') {
-      container.style.position = 'relative';
-      container.style.isolation = "isolate"; // Create new stacking context
-      container.style.zIndex = "1"; // Low z-index for container
-    }
-    
-    // Create overlay button
-    const overlay = document.createElement("div");
-    overlay.style.position = "absolute";
-    overlay.style.top = "50%";
-    overlay.style.left = "50%";
-    overlay.style.transform = "translate(-50%, -50%)";
-    overlay.style.zIndex = "10"; // Lower z-index, contained within parent
-    overlay.style.pointerEvents = "none";
-    
-    const button = document.createElement("a");
-    button.textContent = "Go touch grass 🌱";
-    button.href = GRASS_URL;
-    button.target = "_blank";
-    button.rel = "noopener noreferrer";
-    
-    // Apply same styling as text CTA
-    button.style.fontFamily = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
-    button.style.fontSize = "13px";
-    button.style.fontWeight = "500";
-    button.style.letterSpacing = "0.01em";
-    button.style.color = "#ffffff";
-    button.style.textDecoration = "none";
-    button.style.whiteSpace = "nowrap";
-    button.style.padding = "8px 20px";
-    button.style.borderRadius = "20px";
-    button.style.border = "none";
-    button.style.outline = "none";
-    button.style.background = "linear-gradient(135deg, #22c55e 0%, #16a34a 100%)";
-    button.style.boxShadow = "0 4px 12px rgba(34, 197, 94, 0.3), 0 2px 4px rgba(0, 0, 0, 0.1)";
-    button.style.backdropFilter = "blur(10px)";
-    button.style.transition = "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)";
-    button.style.cursor = "pointer";
-    button.style.pointerEvents = "auto";
-    
-    // Hover effects
-    button.addEventListener("mouseenter", function() {
-      button.style.transform = "scale(1.05)";
-      button.style.boxShadow = "0 6px 16px rgba(34, 197, 94, 0.4), 0 4px 8px rgba(0, 0, 0, 0.15)";
-    });
-    
-    button.addEventListener("mouseleave", function() {
-      button.style.transform = "scale(1)";
-      button.style.boxShadow = "0 4px 12px rgba(34, 197, 94, 0.3), 0 2px 4px rgba(0, 0, 0, 0.1)";
-    });
-    
-    overlay.appendChild(button);
-    
-    // Add click handler to restore original
-    img.addEventListener("click", function() {
-      if (img.dataset.originalSrc) {
-        img.src = img.dataset.originalSrc;
-        if (overlay.parentNode) {
-          overlay.parentNode.removeChild(overlay);
-        }
-        img.dataset.aiReplaced = "false";
-      }
-    });
-    
-    // Insert overlay
-    if (container && container.style.position === 'relative') {
-      container.appendChild(overlay);
-    } else {
-      // Fallback: wrap image
-      const wrapper = document.createElement("div");
-      wrapper.style.position = "relative";
-      wrapper.style.display = "inline-block";
-      if (img.parentNode) {
-        img.parentNode.insertBefore(wrapper, img);
-        wrapper.appendChild(img);
-        wrapper.appendChild(overlay);
-      }
+  // Ensure parent container is positioned
+  const container = img.parentElement;
+  if (container && container.style.position !== 'relative') {
+    container.style.position = 'relative';
+    container.style.isolation = "isolate";
+    container.style.zIndex = "1";
+  } else if (!container || container.style.position !== 'relative') {
+    // Wrap image if needed
+    const wrapper = document.createElement("div");
+    wrapper.style.position = "relative";
+    wrapper.style.display = "inline-block";
+    wrapper.style.isolation = "isolate";
+    wrapper.style.zIndex = "1";
+    if (img.parentNode) {
+      img.parentNode.insertBefore(wrapper, img);
+      wrapper.appendChild(img);
     }
   }
+  
+  // Add confidence badge in corner
+  if (confidence !== null && confidence !== undefined) {
+    const confidenceBadge = document.createElement("div");
+    const confidencePercent = Math.round(confidence * 10000) / 100; // Round to nearest 100th
+    confidenceBadge.textContent = confidencePercent + "%";
+    
+    // Positioning - top right corner
+    confidenceBadge.style.position = "absolute";
+    confidenceBadge.style.top = "8px";
+    confidenceBadge.style.right = "8px";
+    confidenceBadge.style.zIndex = "10";
+    confidenceBadge.style.pointerEvents = "none";
+    
+    // Styling
+    confidenceBadge.style.fontFamily = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
+    confidenceBadge.style.fontSize = "12px";
+    confidenceBadge.style.fontWeight = "600";
+    confidenceBadge.style.color = "#ffffff";
+    confidenceBadge.style.background = "rgba(0, 0, 0, 0.7)";
+    confidenceBadge.style.backdropFilter = "blur(8px)";
+    confidenceBadge.style.padding = "4px 8px";
+    confidenceBadge.style.borderRadius = "12px";
+    confidenceBadge.style.boxShadow = "0 2px 8px rgba(0, 0, 0, 0.3)";
+    
+    const parent = img.parentElement;
+    if (parent) {
+      parent.appendChild(confidenceBadge);
+    }
+  }
+  
+  // Toggle blur on image click
+  img.addEventListener("click", function() {
+    const isBlurred = img.style.filter.includes("blur");
+    if (isBlurred) {
+      img.style.filter = "none";
+    } else {
+      img.style.filter = "blur(" + BLUR_PX + "px)";
+    }
+  });
 }
 
 /**
@@ -366,7 +320,7 @@ async function scanImages(root) {
             const result = await detectAIImage(img);
             const minConfidence = result?.metadataBased ? 0.4 : 0.5;
             if (result && result.score >= IMAGE_THRESHOLD && result.confidence >= minConfidence) {
-              replaceImageWithSlop(img, result.score);
+              blurImageWithConfidence(img, result.score, result.confidence);
             }
           } catch (error) {
             // Silently fail
@@ -378,20 +332,20 @@ async function scanImages(root) {
     
     img.dataset.aiScanned = "true";
     
-        // Detect AI image
-        if (typeof detectAIImage !== 'undefined') {
-          try {
-            const result = await detectAIImage(img);
-            // If metadata-based detection, use lower confidence requirement
-            // Otherwise require both high score AND good confidence
-            const minConfidence = result?.metadataBased ? 0.4 : 0.5;
-            if (result && result.score >= IMAGE_THRESHOLD && result.confidence >= minConfidence) {
-              replaceImageWithSlop(img, result.score);
-            }
-          } catch (error) {
-            // Silently fail
-          }
+    // Detect AI image
+    if (typeof detectAIImage !== 'undefined') {
+      try {
+        const result = await detectAIImage(img);
+        // If metadata-based detection, use lower confidence requirement
+        // Otherwise require both high score AND good confidence
+        const minConfidence = result?.metadataBased ? 0.4 : 0.5;
+        if (result && result.score >= IMAGE_THRESHOLD && result.confidence >= minConfidence) {
+          blurImageWithConfidence(img, result.score, result.confidence);
         }
+      } catch (error) {
+        // Silently fail
+      }
+    }
   }
 }
 
@@ -415,18 +369,34 @@ async function scan(root) {
     const quickScore = scoreText(text);
     
     if (quickScore >= THRESHOLD) {
-      blurWithCTA(el, quickScore);
+      blurWithCTA(el, quickScore, null); // No confidence for sync score
       
       // Then refine with async ML scoring
-      scoreTextAsync(text).then(refinedScore => {
-        // Update if ML score is significantly different
-        if (Math.abs(refinedScore - quickScore) > 0.15) {
-          if (refinedScore >= THRESHOLD && el.dataset.aiBlur !== "true") {
-            blurWithCTA(el, refinedScore);
-          } else if (refinedScore < THRESHOLD && el.dataset.aiBlur === "true") {
-            // Remove blur if ML says it's not AI
-            el.dataset.aiBlur = "false";
-            el.innerHTML = text;
+      scoreTextAsync(text).then(result => {
+        if (result && typeof result === 'object' && result.score !== undefined) {
+          const refinedScore = result.score;
+          const confidence = result.confidence || null;
+          
+          // Update if ML score is significantly different
+          if (Math.abs(refinedScore - quickScore) > 0.15) {
+            if (refinedScore >= THRESHOLD && el.dataset.aiBlur !== "true") {
+              blurWithCTA(el, refinedScore, confidence);
+            } else if (refinedScore < THRESHOLD && el.dataset.aiBlur === "true") {
+              // Remove blur if ML says it's not AI
+              el.dataset.aiBlur = "false";
+              el.innerHTML = text;
+            }
+          } else if (confidence !== null) {
+            // Update confidence badge if score is similar
+            blurWithCTA(el, refinedScore, confidence);
+          }
+        } else {
+          // Fallback for old API
+          const refinedScore = result || quickScore;
+          if (Math.abs(refinedScore - quickScore) > 0.15) {
+            if (refinedScore >= THRESHOLD && el.dataset.aiBlur !== "true") {
+              blurWithCTA(el, refinedScore, null);
+            }
           }
         }
       }).catch(() => {
