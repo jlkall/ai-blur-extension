@@ -3,6 +3,12 @@ let session = null;
 async function loadModel() {
   if (session) return;
 
+  // Check if chrome.runtime is available
+  if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.getURL) {
+    console.warn("[CloseAI] chrome.runtime not available");
+    return;
+  }
+
   ort.env.wasm.wasmPaths = chrome.runtime.getURL("ml/");
 
   session = await ort.InferenceSession.create(

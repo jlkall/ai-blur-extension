@@ -19,6 +19,13 @@ async function loadModel() {
   }
 
   try {
+    // Check if chrome.runtime is available
+    if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.getURL) {
+      console.warn("[CloseAI] chrome.runtime not available, using statistical features only");
+      session = false;
+      return null;
+    }
+
     // Configure WASM paths - use relative paths that work in extensions
     if (ort.env && ort.env.wasm) {
       ort.env.wasm.wasmPaths = chrome.runtime.getURL("ml/");
@@ -48,6 +55,11 @@ async function loadTokenizer() {
   if (tokenizer) return tokenizer;
 
   try {
+    // Check if chrome.runtime is available
+    if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.getURL) {
+      return null;
+    }
+
     const response = await fetch(chrome.runtime.getURL("ml/tokenizer.json"));
     tokenizer = await response.json();
     return tokenizer;
