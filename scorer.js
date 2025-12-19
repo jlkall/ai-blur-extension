@@ -3,62 +3,11 @@
  * Integrates robust ML models with statistical features
  */
 
-// Legacy signal functions (kept for backward compatibility)
-function entropyScore(text) {
-  const freq = {};
-  for (const c of text) freq[c] = (freq[c] || 0) + 1;
-
-  const len = text.length;
-  let entropy = 0;
-
-  for (const c in freq) {
-    const p = freq[c] / len;
-    entropy -= p * Math.log2(p);
+// Ensure clamp is available (defined in signals.js, but provide fallback)
+if (typeof clamp === 'undefined') {
+  function clamp(n) {
+    return Math.max(0, Math.min(1, n));
   }
-
-  return clamp(1 - entropy / 5);
-}
-
-function sentenceVarianceScore(text) {
-  const sentences = text.split(/[.!?]/).filter(Boolean);
-  if (sentences.length < 3) return 0;
-
-  const lengths = sentences.map(s => s.split(/\s+/).length);
-  const mean = lengths.reduce((a,b)=>a+b,0) / lengths.length;
-  const variance = lengths.reduce((a,b)=>a+(b-mean)**2,0) / lengths.length;
-
-  return clamp(1 - variance / 50);
-}
-
-function stopwordDensityScore(text) {
-  const STOPWORDS = new Set([
-    "the","is","at","which","on","and","a","an","to","of","in","for","with"
-  ]);
-  const words = text.toLowerCase().split(/\s+/);
-  const count = words.filter(w => STOPWORDS.has(w)).length;
-  return clamp((count / words.length) * 2);
-}
-
-function listDensityScore(text) {
-  const bullets = (text.match(/[-•]/g) || []).length;
-  return clamp(bullets / 5);
-}
-
-function hedgingScore(text) {
-  const HEDGING_PHRASES = [
-    "it is important to note",
-    "in conclusion",
-    "generally speaking",
-    "overall",
-    "as mentioned earlier"
-  ];
-  const lower = text.toLowerCase();
-  const hits = HEDGING_PHRASES.filter(p => lower.includes(p)).length;
-  return clamp(hits / 2);
-}
-
-function clamp(n) {
-  return Math.max(0, Math.min(1, n));
 }
 
 /**
@@ -93,8 +42,31 @@ async function scoreParagraph(text) {
 
 /**
  * Synchronous version for immediate scoring (uses statistical features only)
+ * This function must be available globally for content.js
  */
 function scoreParagraphSync(text) {
+  // Ensure all helper functions are available (from signals.js)
+  if (typeof entropyScore === 'undefined' || 
+      typeof sentenceVarianceScore === 'undefined' ||
+      typeof stopwordDensityScore === 'undefined' ||
+      typeof listDensityScore === 'undefined' ||
+      typeof hedgingScore === 'undefined') {
+    console.error("[AI BLUR] Required scoring functions not loaded. Available:", {
+      entropyScore: typeof entropyScore,
+      sentenceVarianceScore: typeof sentenceVarianceScore,
+      stopwordDensityScore: typeof stopwordDensityScore,
+      listDensityScore: typeof listDensityScore,
+      hedgingScore: typeof hedgingScore
+    });
+    // Fallback scoring
+    const words = text.trim().split(/\s+/).length;
+    if (words > 150) return 0.9;
+    if (words > 100) return 0.7;
+    if (words > 60) return 0.5;
+    if (words > 40) return 0.3;
+    return 0.1;
+  }
+
   const scores = [
     { weight: 0.35, value: entropyScore(text) },
     { weight: 0.20, value: sentenceVarianceScore(text) },
@@ -105,3 +77,6 @@ function scoreParagraphSync(text) {
 
   return scores.reduce((sum, s) => sum + s.weight * s.value, 0);
 }
+
+// Verify function is defined (for debugging)
+console.log("[AI BLUR] scoreParagraphSync defined:", typeof scoreParagraphSync);

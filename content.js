@@ -69,9 +69,17 @@ function scoreText(text) {
   
   // Use synchronous scoring for immediate feedback
   // ML scoring will happen asynchronously
-  const syncScore = scoreParagraphSync(text);
-  
-  return syncScore;
+  if (typeof scoreParagraphSync === 'function') {
+    return scoreParagraphSync(text);
+  } else {
+    console.warn("[AI BLUR] scoreParagraphSync not available, using fallback");
+    // Fallback: simple word count heuristic
+    if (words > 150) return 0.9;
+    if (words > 100) return 0.7;
+    if (words > 60) return 0.5;
+    if (words > 40) return 0.3;
+    return 0.1;
+  }
 }
 
 /**
@@ -89,7 +97,7 @@ async function scoreTextAsync(text) {
   try {
     if (typeof detectAIGenerated !== 'undefined') {
       const result = await detectAIGenerated(text);
-      const score = result ? result.score : scoreParagraphSync(text);
+      const score = result ? result.score : (typeof scoreParagraphSync === 'function' ? scoreParagraphSync(text) : 0.5);
       
       // Cache the score
       if (scoreCache.size >= CACHE_SIZE) {
@@ -100,11 +108,11 @@ async function scoreTextAsync(text) {
       
       return score;
     }
-  } catch (error) {
-    console.warn("[AI BLUR] Async scoring error:", error);
-  }
+    } catch (error) {
+      console.warn("[AI BLUR] Async scoring error:", error);
+    }
   
-  return scoreParagraphSync(text);
+  return typeof scoreParagraphSync === 'function' ? scoreParagraphSync(text) : 0.5;
 }
 
 function blurWithCTA(el, score) {
@@ -122,27 +130,63 @@ function blurWithCTA(el, score) {
   span.style.cursor = "pointer";
   span.style.transition = "filter 0.15s ease";
 
-  // CTA button
+  // CTA button - clean, modern design
   const button = document.createElement("a");
   button.textContent = "Go touch grass 🌱";
   button.href = GRASS_URL;
   button.target = "_blank";
   button.rel = "noopener noreferrer";
 
+  // Positioning
   button.style.position = "absolute";
   button.style.top = "50%";
   button.style.left = "50%";
   button.style.transform = "translate(-50%, -50%)";
-  button.style.padding = "10px 16px";
-  button.style.fontSize = "14px";
-  button.style.fontFamily = "system-ui, -apple-system, BlinkMacSystemFont";
-  button.style.borderRadius = "999px";
-  button.style.background = "#22c55e";
-  button.style.color = "white";
-  button.style.fontWeight = "600";
-  button.style.textDecoration = "none";
   button.style.zIndex = "9999";
-  button.style.boxShadow = "0 6px 16px rgba(0,0,0,0.25)";
+  
+  // Typography
+  button.style.fontFamily = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
+  button.style.fontSize = "13px";
+  button.style.fontWeight = "500";
+  button.style.letterSpacing = "0.01em";
+  button.style.color = "#ffffff";
+  button.style.textDecoration = "none";
+  button.style.whiteSpace = "nowrap";
+  
+  // Layout
+  button.style.padding = "8px 20px";
+  button.style.borderRadius = "20px";
+  button.style.border = "none";
+  button.style.outline = "none";
+  
+  // Colors and effects
+  button.style.background = "linear-gradient(135deg, #22c55e 0%, #16a34a 100%)";
+  button.style.boxShadow = "0 4px 12px rgba(34, 197, 94, 0.3), 0 2px 4px rgba(0, 0, 0, 0.1)";
+  button.style.backdropFilter = "blur(10px)";
+  
+  // Transitions
+  button.style.transition = "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)";
+  button.style.cursor = "pointer";
+  
+  // Hover effects
+  button.addEventListener("mouseenter", function() {
+    button.style.transform = "translate(-50%, -50%) scale(1.05)";
+    button.style.boxShadow = "0 6px 16px rgba(34, 197, 94, 0.4), 0 4px 8px rgba(0, 0, 0, 0.15)";
+  });
+  
+  button.addEventListener("mouseleave", function() {
+    button.style.transform = "translate(-50%, -50%) scale(1)";
+    button.style.boxShadow = "0 4px 12px rgba(34, 197, 94, 0.3), 0 2px 4px rgba(0, 0, 0, 0.1)";
+  });
+  
+  // Active state
+  button.addEventListener("mousedown", function() {
+    button.style.transform = "translate(-50%, -50%) scale(0.98)";
+  });
+  
+  button.addEventListener("mouseup", function() {
+    button.style.transform = "translate(-50%, -50%) scale(1.05)";
+  });
 
   // Toggle blur on text click
   span.addEventListener("click", function () {
