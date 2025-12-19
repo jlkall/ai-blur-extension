@@ -509,25 +509,6 @@ function blurImageWithConfidence(img, score, confidence = null) {
   img.style.transition = "filter 0.15s ease";
   img.style.cursor = "pointer";
   
-  // Ensure parent container is positioned
-  const container = img.parentElement;
-  if (container && container.style.position !== 'relative') {
-    container.style.position = 'relative';
-    container.style.isolation = "isolate";
-    container.style.zIndex = "1";
-  } else if (!container || container.style.position !== 'relative') {
-    // Wrap image if needed
-    const wrapper = document.createElement("div");
-    wrapper.style.position = "relative";
-    wrapper.style.display = "inline-block";
-    wrapper.style.isolation = "isolate";
-    wrapper.style.zIndex = "1";
-    if (img.parentNode) {
-      img.parentNode.insertBefore(wrapper, img);
-      wrapper.appendChild(img);
-    }
-  }
-  
   // Ensure we have a container for badges
   let container = img.parentElement;
   if (!container || container.style.position !== 'relative') {
