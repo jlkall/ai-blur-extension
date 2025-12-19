@@ -1,7 +1,7 @@
 console.log("[AI BLUR] Enhanced ML detection loaded");
 
 const THRESHOLD = 0.25;
-const IMAGE_THRESHOLD = 0.3; // Threshold for AI image detection
+const IMAGE_THRESHOLD = 0.40; // Threshold for AI image detection (with metadata, can be slightly lower)
 const BLUR_PX = 8;
 const GRASS_URL = "https://www.google.com/search?q=grass+nature&tbm=isch";
 
@@ -315,29 +315,61 @@ function replaceImageWithSlop(img, score) {
 }
 
 /**
- * Scan and process images
+ * Scan and process images selectively
  */
 async function scanImages(root) {
-  const images = root.querySelectorAll("img:not([data-ai-scanned])");
+  const images = Array.from(root.querySelectorAll("img:not([data-ai-scanned])"));
   
-  for (const img of images) {
-    // Skip very small images (icons, avatars)
-    if (img.width < 50 || img.height < 50) {
+  // Filter and prioritize images
+  const candidateImages = images.filter(img => {
+    // Skip very small images (icons, avatars, thumbnails)
+    if (img.width < 100 || img.height < 100) {
       img.dataset.aiScanned = "true";
-      continue;
+      return false;
+    }
+    
+    // Skip images that are too large (likely backgrounds)
+    if (img.width > 2000 || img.height > 2000) {
+      img.dataset.aiScanned = "true";
+      return false;
     }
     
     // Skip if already processed
-    if (img.dataset.aiReplaced === "true") continue;
+    if (img.dataset.aiReplaced === "true") return false;
+    
+    // Prioritize images with certain aspect ratios (typical for AI art)
+    const aspectRatio = img.width / img.height;
+    // Square-ish or portrait images are more likely to be AI art
+    if (aspectRatio < 0.5 || aspectRatio > 2.0) {
+      // Very wide or very tall - less likely to be AI art, lower priority
+      return false;
+    }
+    
+    return true;
+  });
+  
+  // Process images with a delay to avoid blocking
+  for (let i = 0; i < candidateImages.length; i++) {
+    const img = candidateImages[i];
+    
+    // Add small delay between processing to avoid blocking UI
+    if (i > 0 && i % 5 === 0) {
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
     
     // Wait for image to load
     if (!img.complete) {
       img.addEventListener("load", async function() {
         img.dataset.aiScanned = "true";
         if (typeof detectAIImage !== 'undefined') {
-          const result = await detectAIImage(img);
-          if (result && result.score >= IMAGE_THRESHOLD) {
-            replaceImageWithSlop(img, result.score);
+          try {
+            const result = await detectAIImage(img);
+            const minConfidence = result?.metadataBased ? 0.4 : 0.5;
+            if (result && result.score >= IMAGE_THRESHOLD && result.confidence >= minConfidence) {
+              replaceImageWithSlop(img, result.score);
+            }
+          } catch (error) {
+            // Silently fail
           }
         }
       }, { once: true });
@@ -346,17 +378,20 @@ async function scanImages(root) {
     
     img.dataset.aiScanned = "true";
     
-    // Detect AI image
-    if (typeof detectAIImage !== 'undefined') {
-      try {
-        const result = await detectAIImage(img);
-        if (result && result.score >= IMAGE_THRESHOLD) {
-          replaceImageWithSlop(img, result.score);
+        // Detect AI image
+        if (typeof detectAIImage !== 'undefined') {
+          try {
+            const result = await detectAIImage(img);
+            // If metadata-based detection, use lower confidence requirement
+            // Otherwise require both high score AND good confidence
+            const minConfidence = result?.metadataBased ? 0.4 : 0.5;
+            if (result && result.score >= IMAGE_THRESHOLD && result.confidence >= minConfidence) {
+              replaceImageWithSlop(img, result.score);
+            }
+          } catch (error) {
+            // Silently fail
+          }
         }
-      } catch (error) {
-        console.warn("[AI BLUR] Image detection error:", error);
-      }
-    }
   }
 }
 
