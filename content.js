@@ -263,14 +263,18 @@ async function scoreTextAsync(text) {
 
 /**
  * Calculate AI certainty from score and confidence
- * Certainty combines both the detection score and confidence level
+ * Certainty represents how certain we are this is AI-generated
+ * Uses the detection score directly, or combines with confidence if available
  */
 function calculateCertainty(score, confidence) {
-  // If we have confidence, use weighted average: 60% score, 40% confidence
-  // If no confidence, use score as certainty
+  // Use the detection score as the primary certainty metric
+  // If we have confidence, it can help refine, but score is the main indicator
+  // Score already represents AI likelihood (0-1 scale)
   if (confidence !== null && confidence !== undefined) {
-    return (score * 0.6 + confidence * 0.4);
+    // Weighted: 70% score (main indicator), 30% confidence (refinement)
+    return Math.min(1, (score * 0.7 + confidence * 0.3));
   }
+  // If no confidence, score IS the certainty
   return score;
 }
 
@@ -300,16 +304,18 @@ function addCertaintyBlob(element, score, confidence) {
   
   // Small, minimal blob design
   blob.style.fontFamily = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
-  blob.style.fontSize = "10px";
+  blob.style.fontSize = "11px";
   blob.style.fontWeight = "700";
   blob.style.color = "#ffffff";
-  blob.style.background = certainty >= 0.7 ? "rgba(244, 67, 54, 0.9)" : certainty >= 0.5 ? "rgba(255, 152, 0, 0.9)" : "rgba(76, 175, 80, 0.9)";
-  blob.style.padding = "3px 6px";
-  blob.style.borderRadius = "10px";
-  blob.style.boxShadow = "0 1px 4px rgba(0, 0, 0, 0.4)";
+  // Color coding: Red = high AI certainty, Orange = medium, Yellow = low
+  blob.style.background = certainty >= 0.7 ? "rgba(244, 67, 54, 0.95)" : certainty >= 0.5 ? "rgba(255, 152, 0, 0.95)" : "rgba(255, 193, 7, 0.95)";
+  blob.style.padding = "4px 7px";
+  blob.style.borderRadius = "12px";
+  blob.style.boxShadow = "0 2px 6px rgba(0, 0, 0, 0.3)";
   blob.style.lineHeight = "1.2";
-  blob.style.minWidth = "28px";
+  blob.style.minWidth = "32px";
   blob.style.textAlign = "center";
+  blob.style.border = "1px solid rgba(255, 255, 255, 0.2)";
   
   element.appendChild(blob);
 }
