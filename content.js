@@ -425,6 +425,90 @@ function blurImageWithConfidence(img, score, confidence = null) {
 }
 
 /**
+ * Outline AI image with green box instead of blurring
+ */
+function outlineImageWithConfidence(img, score, confidence = null) {
+  if (img.dataset.aiOutline === "true") return;
+  if (!img.complete || img.naturalWidth === 0) return;
+  
+  img.dataset.aiOutline = "true";
+  
+  // Ensure parent container is positioned
+  let container = img.parentElement;
+  if (!container || container.style.position !== 'relative') {
+    const wrapper = document.createElement("div");
+    wrapper.style.position = "relative";
+    wrapper.style.display = "inline-block";
+    wrapper.style.isolation = "isolate";
+    wrapper.style.zIndex = "1";
+    if (img.parentNode) {
+      img.parentNode.insertBefore(wrapper, img);
+      wrapper.appendChild(img);
+    }
+    container = wrapper;
+  } else {
+    container.style.position = 'relative';
+    container.style.isolation = "isolate";
+    container.style.zIndex = "1";
+  }
+  
+  // Add green outline box around image
+  container.style.border = "3px solid rgba(76, 175, 80, 0.8)";
+  container.style.borderRadius = "8px";
+  container.style.padding = "4px";
+  container.style.backgroundColor = "rgba(76, 175, 80, 0.1)";
+  container.style.boxShadow = "0 0 0 1px rgba(76, 175, 80, 0.3), 0 2px 8px rgba(76, 175, 80, 0.2)";
+  container.style.cursor = "pointer";
+  
+  // Add confidence badge in corner
+  if (confidence !== null && confidence !== undefined) {
+    const confidenceBadge = document.createElement("div");
+    const confidencePercent = Math.round(confidence * 10000) / 100;
+    confidenceBadge.textContent = confidencePercent + "%";
+    
+    confidenceBadge.style.position = "absolute";
+    confidenceBadge.style.top = "8px";
+    confidenceBadge.style.right = "8px";
+    confidenceBadge.style.zIndex = "10";
+    confidenceBadge.style.pointerEvents = "none";
+    
+    confidenceBadge.style.fontFamily = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
+    confidenceBadge.style.fontSize = "12px";
+    confidenceBadge.style.fontWeight = "600";
+    confidenceBadge.style.color = "#ffffff";
+    confidenceBadge.style.background = "rgba(76, 175, 80, 0.9)";
+    confidenceBadge.style.backdropFilter = "blur(8px)";
+    confidenceBadge.style.padding = "4px 8px";
+    confidenceBadge.style.borderRadius = "12px";
+    confidenceBadge.style.boxShadow = "0 2px 8px rgba(0, 0, 0, 0.3)";
+    
+    container.appendChild(confidenceBadge);
+  }
+  
+  // Toggle outline on click
+  container.addEventListener("click", function() {
+    if (container.style.border === "none" || container.style.border === "") {
+      container.style.border = "3px solid rgba(76, 175, 80, 0.8)";
+      container.style.backgroundColor = "rgba(76, 175, 80, 0.1)";
+    } else {
+      container.style.border = "none";
+      container.style.backgroundColor = "transparent";
+    }
+  });
+  
+  // Add feedback buttons if game mode is enabled
+  if (typeof addFeedbackButtons !== 'undefined') {
+    const checkGameMode = typeof isGameModeEnabled !== 'undefined' ? isGameModeEnabled : 
+                         (typeof gameModeEnabled !== 'undefined' ? gameModeEnabled : () => false);
+    if (checkGameMode()) {
+      setTimeout(() => {
+        addFeedbackButtons(img, score, confidence, true);
+      }, 100);
+    }
+  }
+}
+
+/**
  * Scan and process images selectively
  */
 async function scanImages(root) {
