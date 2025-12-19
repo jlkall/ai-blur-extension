@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "AI Blur - Detect & Blur AI Content",
+  "name": "CloseAI",
   "version": "0.3.0",
   "description": "Detects and blurs AI-generated text and images using advanced ML models. Shows confidence ratings.",
   "permissions": [],

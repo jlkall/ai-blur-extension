@@ -986,7 +986,7 @@ async function detectAIImage(img) {
     
     return result;
   } catch (error) {
-    console.warn("[AI BLUR] Image detection error:", error);
+    console.warn("[CloseAI] Image detection error:", error);
     return { score: 0, confidence: 0 };
   }
 }

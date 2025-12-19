@@ -24,7 +24,7 @@ async function scoreParagraph(text) {
         return result.score * (0.7 + 0.3 * result.confidence);
       }
     } catch (error) {
-      console.warn("[AI BLUR] ML detection failed, using fallback:", error);
+      console.warn("[CloseAI] ML detection failed, using fallback:", error);
     }
   }
 
@@ -51,7 +51,7 @@ function scoreParagraphSync(text) {
       typeof stopwordDensityScore === 'undefined' ||
       typeof listDensityScore === 'undefined' ||
       typeof hedgingScore === 'undefined') {
-    console.error("[AI BLUR] Required scoring functions not loaded. Available:", {
+    console.error("[CloseAI] Required scoring functions not loaded. Available:", {
       entropyScore: typeof entropyScore,
       sentenceVarianceScore: typeof sentenceVarianceScore,
       stopwordDensityScore: typeof stopwordDensityScore,
@@ -79,4 +79,4 @@ function scoreParagraphSync(text) {
 }
 
 // Verify function is defined (for debugging)
-console.log("[AI BLUR] scoreParagraphSync defined:", typeof scoreParagraphSync);
+console.log("[CloseAI] scoreParagraphSync defined:", typeof scoreParagraphSync);

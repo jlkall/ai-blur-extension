@@ -33,7 +33,7 @@ Run the packaging script:
 
 Or manually:
 ```bash
-zip -r ai-blur-extension.zip . -x "*.git*" -x "*.DS_Store" -x "*.md" -x "PUBLISHING.md" -x ".gitignore"
+zip -r closeai-extension.zip . -x "*.git*" -x "*.DS_Store" -x "*.md" -x "PUBLISHING.md" -x ".gitignore"
 ```
 
 ### 3. Create Developer Account
@@ -46,22 +46,22 @@ zip -r ai-blur-extension.zip . -x "*.git*" -x "*.DS_Store" -x "*.md" -x "PUBLISH
 ### 4. Upload & Submit
 
 1. Click **"New Item"** in dashboard
-2. Upload `ai-blur-extension.zip`
+2. Upload `closeai-extension.zip`
 3. Fill out store listing (see PUBLISHING.md for details)
 4. Submit for review
 
 ## Store Listing Template
 
-**Name:** AI Blur - Detect & Blur AI Content
+**Name:** CloseAI
 
 **Short Description:**
 ```
-Detects and blurs AI-generated text and images using advanced ML models. Shows confidence ratings.
+CloseAI - Detects and blurs AI-generated text and images using advanced ML models. Shows confidence ratings.
 ```
 
 **Detailed Description:**
 ```
-AI Blur automatically detects and blurs AI-generated content using advanced machine learning models.
+CloseAI automatically detects and blurs AI-generated content using advanced machine learning models.
 
 KEY FEATURES:
 • ML-based text detection (perplexity, burstiness, statistical analysis)

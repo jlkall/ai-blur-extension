@@ -1,4 +1,4 @@
-console.log("[AI BLUR] Enhanced ML detection loaded");
+console.log("[CloseAI] Enhanced ML detection loaded");
 
 const THRESHOLD = 0.25;
 const IMAGE_THRESHOLD = 0.40; // Threshold for AI image detection (with metadata, can be slightly lower)
@@ -43,7 +43,7 @@ async function processScoringQueue() {
       
       callback(score);
     } catch (error) {
-      console.warn("[AI BLUR] Scoring error:", error);
+      console.warn("[CloseAI] Scoring error:", error);
       callback(scoreParagraphSync(text));
     }
   }
@@ -72,7 +72,7 @@ function scoreText(text) {
   if (typeof scoreParagraphSync === 'function') {
     return scoreParagraphSync(text);
   } else {
-    console.warn("[AI BLUR] scoreParagraphSync not available, using fallback");
+    console.warn("[CloseAI] scoreParagraphSync not available, using fallback");
     // Fallback: simple word count heuristic
     if (words > 150) return 0.9;
     if (words > 100) return 0.7;
@@ -125,7 +125,7 @@ async function scoreTextAsync(text) {
       }
     }
     } catch (error) {
-      console.warn("[AI BLUR] Async scoring error:", error);
+      console.warn("[CloseAI] Async scoring error:", error);
     }
   
   const fallbackScore = typeof scoreParagraphSync === 'function' ? scoreParagraphSync(text) : 0.5;

@@ -19,7 +19,7 @@ Create an `icons/` folder and add these. You can use any image editor or online 
 #### C. Package Your Extension
 ```bash
 # In the extension directory
-zip -r ai-blur-extension.zip . -x "*.git*" -x "*.DS_Store" -x "*.md" -x "PUBLISHING.md"
+zip -r closeai-extension.zip . -x "*.git*" -x "*.DS_Store" -x "*.md" -x "PUBLISHING.md"
 ```
 
 Or use Chrome's built-in packer:
@@ -46,7 +46,7 @@ Or use Chrome's built-in packer:
 
 #### Required Fields:
 
-**Name:** AI Blur - Detect & Blur AI-Generated Content
+**Name:** CloseAI
 
 **Short Description (132 chars max):**
 ```
@@ -55,7 +55,7 @@ Detects and blurs AI-generated text and images using advanced ML models. Shows c
 
 **Detailed Description:**
 ```
-AI Blur is a powerful browser extension that automatically detects and blurs AI-generated content using advanced machine learning models.
+CloseAI is a powerful browser extension that automatically detects and blurs AI-generated content using advanced machine learning models.
 
 Features:
 • Advanced ML-based text detection using perplexity, burstiness, and statistical analysis

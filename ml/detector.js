@@ -13,7 +13,7 @@ async function loadModel() {
 
   // Check if ONNX Runtime is available
   if (typeof ort === 'undefined') {
-    console.warn("[AI BLUR] ONNX Runtime not available");
+    console.warn("[CloseAI] ONNX Runtime not available");
     session = false;
     return null;
   }
@@ -36,7 +36,7 @@ async function loadModel() {
     // Silently fail - we have statistical fallback, no need to spam console
     // Only log if it's not a WASM/backend error (those are expected)
     if (!error.message.includes('backend') && !error.message.includes('WASM') && !error.message.includes('wasm')) {
-      console.warn("[AI BLUR] Failed to load ML model:", error.message);
+      console.warn("[CloseAI] Failed to load ML model:", error.message);
     }
     session = false; // Mark as failed so we don't keep trying
     return null;
@@ -52,7 +52,7 @@ async function loadTokenizer() {
     tokenizer = await response.json();
     return tokenizer;
   } catch (error) {
-    console.warn("[AI BLUR] Tokenizer not available, using fallback");
+    console.warn("[CloseAI] Tokenizer not available, using fallback");
     return null;
   }
 }
@@ -114,7 +114,7 @@ async function computePerplexity(text) {
     const [batchSize, seqLength, vocabSize] = logits.dims;
     
     if (seqLength !== tokenIds.length) {
-      console.warn("[AI BLUR] Sequence length mismatch");
+      console.warn("[CloseAI] Sequence length mismatch");
       return null;
     }
 
@@ -153,7 +153,7 @@ async function computePerplexity(text) {
     // Clamp to reasonable range
     return Math.max(1, Math.min(1000, perplexity));
   } catch (error) {
-    console.error("[AI BLUR] Perplexity calculation error:", error);
+    console.error("[CloseAI] Perplexity calculation error:", error);
     return null;
   }
 }
