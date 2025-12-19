@@ -7,32 +7,41 @@ const BLUR_PX = 8;
 // Extension enabled state (default to true)
 let extensionEnabled = true;
 
-// Load enabled state from storage
-chrome.storage.local.get(['enabled'], (result) => {
-  extensionEnabled = result.enabled !== false; // Default to true
-  if (!extensionEnabled) {
-    console.log("[CloseAI] Extension is disabled");
+// Load enabled state from storage (with defensive check)
+function loadEnabledState() {
+  if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+    chrome.storage.local.get(['enabled'], (result) => {
+      extensionEnabled = result.enabled !== false; // Default to true
+      if (!extensionEnabled) {
+        console.log("[CloseAI] Extension is disabled");
+      }
+    });
   }
-});
+}
+
+// Load state on initialization
+loadEnabledState();
 
 // Listen for toggle messages from popup
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.action === 'toggle') {
-    extensionEnabled = message.enabled;
-    console.log("[CloseAI] Extension toggled:", extensionEnabled ? "enabled" : "disabled");
-    
-    if (!extensionEnabled) {
-      // Remove all blur effects when disabled
-      removeAllBlurs();
-    } else {
-      // Re-scan when re-enabled
-      scan(document.body);
-      scanImages(document.body);
+if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.action === 'toggle') {
+      extensionEnabled = message.enabled;
+      console.log("[CloseAI] Extension toggled:", extensionEnabled ? "enabled" : "disabled");
+      
+      if (!extensionEnabled) {
+        // Remove all blur effects when disabled
+        removeAllBlurs();
+      } else {
+        // Re-scan when re-enabled
+        scan(document.body);
+        scanImages(document.body);
+      }
+      sendResponse({ success: true });
     }
-    sendResponse({ success: true });
-  }
-  return true;
-});
+    return true;
+  });
+}
 
 // Cache for scores to avoid recomputation
 const scoreCache = new Map();
@@ -490,9 +499,20 @@ const observer = new MutationObserver(function (mutations) {
 });
 
 // Boot - check enabled state first
-chrome.storage.local.get(['enabled'], (result) => {
-  extensionEnabled = result.enabled !== false; // Default to true
-  
+function initializeExtension() {
+  if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+    chrome.storage.local.get(['enabled'], (result) => {
+      extensionEnabled = result.enabled !== false; // Default to true
+      startScanning();
+    });
+  } else {
+    // If storage not available, default to enabled and start scanning
+    extensionEnabled = true;
+    startScanning();
+  }
+}
+
+function startScanning() {
   if (extensionEnabled) {
     if (document.body) {
       scan(document.body);
@@ -512,4 +532,7 @@ chrome.storage.local.get(['enabled'], (result) => {
       });
     }
   }
-});
+}
+
+// Initialize extension
+initializeExtension();
