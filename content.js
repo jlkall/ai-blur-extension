@@ -122,6 +122,8 @@ function blurWithCTA(el, score) {
 
   el.dataset.aiBlur = "true";
   el.style.position = "relative";
+  el.style.isolation = "isolate"; // Create new stacking context
+  el.style.zIndex = "1"; // Low z-index for the container
 
   const span = document.createElement("span");
   span.textContent = el.innerText;
@@ -130,6 +132,8 @@ function blurWithCTA(el, score) {
   span.style.filter = "blur(" + BLUR_PX + "px)";
   span.style.cursor = "pointer";
   span.style.transition = "filter 0.15s ease";
+  span.style.position = "relative";
+  span.style.zIndex = "1";
 
   // CTA button - clean, modern design
   const button = document.createElement("a");
@@ -138,12 +142,13 @@ function blurWithCTA(el, score) {
   button.target = "_blank";
   button.rel = "noopener noreferrer";
 
-  // Positioning
+  // Positioning - contained within parent
   button.style.position = "absolute";
   button.style.top = "50%";
   button.style.left = "50%";
   button.style.transform = "translate(-50%, -50%)";
-  button.style.zIndex = "9999";
+  button.style.zIndex = "10"; // Lower z-index, only relative to parent
+  button.style.pointerEvents = "auto"; // Ensure button is clickable
   
   // Typography
   button.style.fontFamily = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
@@ -230,6 +235,8 @@ function replaceImageWithSlop(img, score) {
     const container = img.parentElement;
     if (container && container.style.position !== 'relative') {
       container.style.position = 'relative';
+      container.style.isolation = "isolate"; // Create new stacking context
+      container.style.zIndex = "1"; // Low z-index for container
     }
     
     // Create overlay button
@@ -238,7 +245,7 @@ function replaceImageWithSlop(img, score) {
     overlay.style.top = "50%";
     overlay.style.left = "50%";
     overlay.style.transform = "translate(-50%, -50%)";
-    overlay.style.zIndex = "9999";
+    overlay.style.zIndex = "10"; // Lower z-index, contained within parent
     overlay.style.pointerEvents = "none";
     
     const button = document.createElement("a");
