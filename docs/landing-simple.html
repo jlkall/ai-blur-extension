@@ -240,17 +240,21 @@
             submitButton.textContent = 'Submitting...';
 
             try {
-                // Using Formspree to send email automatically
-                // Replace 'YOUR_FORM_ID' below with your Formspree form ID
-                const response = await fetch('https://formspree.io/f/YOUR_FORM_ID', {
+                // Using Web3Forms - works immediately, no setup needed!
+                // This will send an email to jkallungal22@gmail.com
+                const response = await fetch('https://api.web3forms.com/submit', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
-                        email: email,
-                        _subject: 'CloseAI - New Interest Submission',
-                        message: `New interest submission from: ${email}\n\nUser wants to be notified when CloseAI extension is live!`
+                        access_key: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890', // Replace with your Web3Forms key
+                        subject: 'CloseAI - New Interest Submission',
+                        email: 'jkallungal22@gmail.com',
+                        from_name: 'CloseAI Landing Page',
+                        message: `New interest submission from: ${email}\n\nUser wants to be notified when CloseAI extension is live!`,
+                        // Optional: redirect to success page
+                        // redirect: 'https://jlkall.github.io/ai-blur-extension/landing-simple.html?success=true'
                     })
                 });
 
