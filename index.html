@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CloseAI - Detect & Blur AI-Generated Content</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        header {
+            text-align: center;
+            color: white;
+            padding: 3rem 0;
+        }
+
+        h1 {
+            font-size: 3.5rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .tagline {
+            font-size: 1.5rem;
+            opacity: 0.95;
+            margin-bottom: 2rem;
+        }
+
+        .main-content {
+            background: white;
+            border-radius: 20px;
+            padding: 3rem;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            margin-bottom: 2rem;
+        }
+
+        h2 {
+            color: #667eea;
+            font-size: 2rem;
+            margin-bottom: 1rem;
+            margin-top: 2rem;
+        }
+
+        h2:first-child {
+            margin-top: 0;
+        }
+
+        p {
+            margin-bottom: 1rem;
+            font-size: 1.1rem;
+            color: #555;
+        }
+
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin: 2rem 0;
+        }
+
+        .feature-card {
+            background: #f8f9fa;
+            padding: 1.5rem;
+            border-radius: 12px;
+            border-left: 4px solid #667eea;
+        }
+
+        .feature-card h3 {
+            color: #667eea;
+            margin-bottom: 0.5rem;
+            font-size: 1.3rem;
+        }
+
+        .feature-card p {
+            color: #666;
+            font-size: 1rem;
+        }
+
+        .tech-stack {
+            background: #f8f9fa;
+            padding: 2rem;
+            border-radius: 12px;
+            margin: 2rem 0;
+        }
+
+        .tech-stack ul {
+            list-style: none;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .tech-stack li {
+            padding: 0.5rem;
+            background: white;
+            border-radius: 8px;
+            padding-left: 1.5rem;
+            position: relative;
+        }
+
+        .tech-stack li:before {
+            content: "✓";
+            position: absolute;
+            left: 0.5rem;
+            color: #667eea;
+            font-weight: bold;
+        }
+
+        .cta {
+            text-align: center;
+            padding: 2rem;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        .cta-button {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1rem 2rem;
+            border-radius: 50px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 1.2rem;
+            margin: 1rem;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .cta-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+
+        .github-link {
+            display: inline-block;
+            color: #667eea;
+            text-decoration: none;
+            margin-top: 1rem;
+            font-weight: 500;
+        }
+
+        .github-link:hover {
+            text-decoration: underline;
+        }
+
+        footer {
+            text-align: center;
+            color: white;
+            padding: 2rem 0;
+            opacity: 0.9;
+        }
+
+        .demo-section {
+            background: #f8f9fa;
+            padding: 2rem;
+            border-radius: 12px;
+            margin: 2rem 0;
+        }
+
+        .demo-image {
+            max-width: 100%;
+            border-radius: 8px;
+            margin: 1rem 0;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        code {
+            background: #f4f4f4;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>CloseAI</h1>
+            <p class="tagline">Detect and blur AI-generated content with advanced machine learning</p>
+        </header>
+
+        <div class="main-content">
+            <h2>What is CloseAI?</h2>
+            <p>
+                CloseAI is a browser extension that automatically detects and blurs AI-generated text and images 
+                using advanced machine learning models. It helps you identify synthetic content as you browse the web, 
+                showing confidence ratings so you know how certain the detection is.
+            </p>
+
+            <h2>Key Features</h2>
+            <div class="features">
+                <div class="feature-card">
+                    <h3>🤖 AI Text Detection</h3>
+                    <p>
+                        Uses perplexity analysis, burstiness detection, and statistical features to identify 
+                        AI-generated text with high accuracy.
+                    </p>
+                </div>
+                <div class="feature-card">
+                    <h3>🖼️ AI Image Detection</h3>
+                    <p>
+                        Detects AI-generated images using metadata analysis, visual pattern recognition, and 
+                        artifact detection.
+                    </p>
+                </div>
+                <div class="feature-card">
+                    <h3>📊 Confidence Ratings</h3>
+                    <p>
+                        Shows confidence percentages on detected content, so you know how certain the detection is.
+                    </p>
+                </div>
+                <div class="feature-card">
+                    <h3>🔒 100% Local Processing</h3>
+                    <p>
+                        All detection happens locally in your browser. No data is collected or sent to external servers.
+                    </p>
+                </div>
+                <div class="feature-card">
+                    <h3>🔍 Google Search Enhancement</h3>
+                    <p>
+                        Automatically appends "-ai" to Google searches to prevent AI overviews from appearing.
+                    </p>
+                </div>
+                <div class="feature-card">
+                    <h3>⚡ Fast & Lightweight</h3>
+                    <p>
+                        Intelligent caching and optimized processing ensure minimal impact on browsing performance.
+                    </p>
+                </div>
+            </div>
+
+            <h2>How It Works</h2>
+            <p>
+                CloseAI uses an ensemble of machine learning techniques to detect AI-generated content:
+            </p>
+
+            <div class="tech-stack">
+                <h3>Detection Methods</h3>
+                <ul>
+                    <li>Perplexity analysis using DistilGPT2</li>
+                    <li>Burstiness and sentence variance detection</li>
+                    <li>N-gram repetition pattern analysis</li>
+                    <li>Word entropy and frequency analysis</li>
+                    <li>Image metadata and URL pattern detection</li>
+                    <li>Visual artifact and color banding detection</li>
+                    <li>Texture smoothness analysis</li>
+                    <li>Edge consistency and sharpness detection</li>
+                </ul>
+            </div>
+
+            <h2>Privacy & Security</h2>
+            <p>
+                <strong>CloseAI respects your privacy:</strong>
+            </p>
+            <ul style="margin-left: 2rem; color: #555;">
+                <li>All processing happens locally in your browser</li>
+                <li>No data is collected or transmitted</li>
+                <li>No external network requests</li>
+                <li>No user tracking or analytics</li>
+                <li>Open source and transparent</li>
+            </ul>
+
+            <h2>Installation</h2>
+            <p>
+                CloseAI is available on the Chrome Web Store. Simply install it and start browsing - 
+                AI-generated content will be automatically detected and blurred with confidence ratings.
+            </p>
+
+            <div class="demo-section">
+                <h3>How It Looks</h3>
+                <p>
+                    When CloseAI detects AI-generated content, it:
+                </p>
+                <ul style="margin-left: 2rem; color: #555;">
+                    <li>Blurs the text or image</li>
+                    <li>Shows a confidence rating badge (e.g., "85.43%")</li>
+                    <li>Allows you to click to reveal the content</li>
+                </ul>
+            </div>
+
+            <h2>Open Source</h2>
+            <p>
+                CloseAI is open source and available on GitHub. You can view the code, contribute, or report issues.
+            </p>
+        </div>
+
+        <div class="cta">
+            <a href="https://chrome.google.com/webstore" class="cta-button">Install from Chrome Web Store</a>
+            <br>
+            <a href="https://github.com/jlkall/ai-blur-extension" class="github-link">View on GitHub →</a>
+        </div>
+
+        <footer>
+            <p>CloseAI - Making AI-generated content visible</p>
+            <p style="margin-top: 1rem; font-size: 0.9rem;">
+                <a href="https://github.com/jlkall/ai-blur-extension/blob/main/PRIVACY.md" style="color: white; text-decoration: underline;">Privacy Policy</a> | 
+                <a href="https://github.com/jlkall/ai-blur-extension" style="color: white; text-decoration: underline;">GitHub</a>
+            </p>
+        </footer>
+    </div>
+</body>
+</html>
+
