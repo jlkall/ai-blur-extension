@@ -258,16 +258,20 @@
                     })
                 });
 
-                if (response.ok) {
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
                     showSuccess();
                     emailInput.value = '';
                 } else {
-                    throw new Error('Submission failed');
+                    console.error('Submission failed:', data);
+                    throw new Error(data.message || 'Submission failed');
                 }
             } catch (error) {
                 console.error('Error:', error);
                 const errorMsg = document.getElementById('errorMessage');
                 if (errorMsg) {
+                    errorMsg.textContent = error.message || 'Something went wrong. Please try again.';
                     errorMsg.style.display = 'block';
                     setTimeout(() => {
                         errorMsg.style.display = 'none';
