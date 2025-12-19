@@ -1,6 +1,7 @@
 console.log("[AI BLUR] Enhanced ML detection loaded");
 
 const THRESHOLD = 0.25;
+const IMAGE_THRESHOLD = 0.3; // Threshold for AI image detection
 const BLUR_PX = 8;
 const GRASS_URL = "https://www.google.com/search?q=grass+nature&tbm=isch";
 

@@ -9,16 +9,32 @@ let tokenizer = null;
 // Initialize ONNX Runtime model
 async function loadModel() {
   if (session) return session;
+  if (session === false) return null; // Already tried and failed
 
-  ort.env.wasm.wasmPaths = chrome.runtime.getURL("ml/");
+  // Check if ONNX Runtime is available
+  if (typeof ort === 'undefined') {
+    console.warn("[AI BLUR] ONNX Runtime not available");
+    session = false;
+    return null;
+  }
 
   try {
+    // Configure WASM paths - use relative paths that work in extensions
+    if (ort.env && ort.env.wasm) {
+      ort.env.wasm.wasmPaths = chrome.runtime.getURL("ml/");
+    }
+
     session = await ort.InferenceSession.create(
-      chrome.runtime.getURL("ml/distilgpt2.onnx")
+      chrome.runtime.getURL("ml/distilgpt2.onnx"),
+      {
+        executionProviders: ['wasm'], // Use WASM only, fallback gracefully
+        logSeverityLevel: 3 // Only log errors
+      }
     );
     return session;
   } catch (error) {
-    console.error("[AI BLUR] Failed to load model:", error);
+    console.warn("[AI BLUR] Failed to load ML model, using statistical features only:", error.message);
+    session = false; // Mark as failed so we don't keep trying
     return null;
   }
 }
