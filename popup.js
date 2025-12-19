@@ -1,10 +1,13 @@
 // Load current state
-chrome.storage.local.get(['enabled', 'gameMode', 'feedbackData'], (result) => {
+chrome.storage.local.get(['enabled', 'gameMode', 'outlineMode', 'feedbackData'], (result) => {
     const enabled = result.enabled !== false; // Default to true
     updateToggle(enabled);
     
     const gameMode = result.gameMode === true;
     updateGameModeToggle(gameMode);
+    
+    const outlineMode = result.outlineMode === true;
+    updateOutlineModeToggle(outlineMode);
     
     // Load and display stats
     if (result.feedbackData) {
@@ -112,6 +115,50 @@ function updateStats(data) {
         ? Math.round((data.modelCorrect / data.total) * 100)
         : 0;
     document.getElementById('statAccuracy').textContent = accuracy + '%';
+}
+
+// Outline mode toggle
+const outlineModeSwitch = document.getElementById('outlineModeSwitch');
+const outlineModeStatusText = document.getElementById('outlineModeStatusText');
+
+outlineModeSwitch.addEventListener('click', () => {
+    chrome.storage.local.get(['outlineMode'], (result) => {
+        const currentState = result.outlineMode === true;
+        const newState = !currentState;
+        
+        chrome.storage.local.set({ outlineMode: newState }, () => {
+            updateOutlineModeToggle(newState);
+            
+            // Notify content script
+            chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+                if (tabs[0]) {
+                    chrome.tabs.sendMessage(tabs[0].id, {
+                        action: 'toggleOutlineMode',
+                        enabled: newState
+                    }).catch(() => {
+                        // Tab might not have content script loaded yet
+                    });
+                }
+            });
+            
+            // Reload current tab to apply changes
+            chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+                if (tabs[0]) {
+                    chrome.tabs.reload(tabs[0].id);
+                }
+            });
+        });
+    });
+});
+
+function updateOutlineModeToggle(enabled) {
+    if (enabled) {
+        outlineModeSwitch.classList.add('active');
+        outlineModeStatusText.textContent = 'Enabled';
+    } else {
+        outlineModeSwitch.classList.remove('active');
+        outlineModeStatusText.textContent = 'Disabled';
+    }
 }
 
 // Refresh stats periodically when game mode is active

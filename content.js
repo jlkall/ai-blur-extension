@@ -6,12 +6,14 @@ const BLUR_PX = 8;
 
 // Extension enabled state (default to true)
 let extensionEnabled = true;
+let outlineMode = false;
 
 // Load enabled state from storage (with defensive check)
 function loadEnabledState() {
   if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-    chrome.storage.local.get(['enabled'], (result) => {
+    chrome.storage.local.get(['enabled', 'outlineMode'], (result) => {
       extensionEnabled = result.enabled !== false; // Default to true
+      outlineMode = result.outlineMode === true;
       if (!extensionEnabled) {
         console.log("[CloseAI] Extension is disabled");
       }
@@ -32,8 +34,21 @@ if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage)
       if (!extensionEnabled) {
         // Remove all blur effects when disabled
         removeAllBlurs();
+        removeAllOutlines();
       } else {
         // Re-scan when re-enabled
+        scan(document.body);
+        scanImages(document.body);
+      }
+      sendResponse({ success: true });
+    } else if (message.action === 'toggleOutlineMode') {
+      outlineMode = message.enabled;
+      console.log("[CloseAI] Outline mode toggled:", outlineMode ? "enabled" : "disabled");
+      
+      // Remove all effects and re-scan with new mode
+      removeAllBlurs();
+      removeAllOutlines();
+      if (extensionEnabled) {
         scan(document.body);
         scanImages(document.body);
       }
@@ -172,8 +187,14 @@ async function scoreTextAsync(text) {
 }
 
 function blurWithCTA(el, score, confidence = null) {
-  if (el.dataset.aiBlur === "true") return;
+  if (el.dataset.aiBlur === "true" || el.dataset.aiOutline === "true") return;
   if (!el.innerText || el.innerText.trim().length < 40) return;
+
+  // Check if outline mode is enabled
+  if (outlineMode) {
+    outlineWithCTA(el, score, confidence);
+    return;
+  }
 
   el.dataset.aiBlur = "true";
   el.style.position = "relative";
@@ -232,6 +253,74 @@ function blurWithCTA(el, score, confidence = null) {
   el.innerHTML = "";
   el.appendChild(span);
   
+  // Add feedback buttons if game mode is enabled
+  if (typeof addFeedbackButtons !== 'undefined') {
+    const checkGameMode = typeof isGameModeEnabled !== 'undefined' ? isGameModeEnabled : 
+                         (typeof gameModeEnabled !== 'undefined' ? gameModeEnabled : () => false);
+    if (checkGameMode()) {
+      setTimeout(() => {
+        addFeedbackButtons(el, score, confidence, false);
+      }, 100);
+    }
+  }
+}
+
+/**
+ * Outline AI content with green box instead of blurring
+ */
+function outlineWithCTA(el, score, confidence = null) {
+  if (el.dataset.aiOutline === "true") return;
+  if (!el.innerText || el.innerText.trim().length < 40) return;
+
+  el.dataset.aiOutline = "true";
+  el.style.position = "relative";
+  el.style.isolation = "isolate";
+  el.style.zIndex = "1";
+
+  // Add green outline box
+  el.style.border = "3px solid rgba(76, 175, 80, 0.8)";
+  el.style.borderRadius = "8px";
+  el.style.padding = "8px";
+  el.style.backgroundColor = "rgba(76, 175, 80, 0.1)";
+  el.style.boxShadow = "0 0 0 1px rgba(76, 175, 80, 0.3), 0 2px 8px rgba(76, 175, 80, 0.2)";
+
+  // Confidence badge in corner
+  if (confidence !== null && confidence !== undefined) {
+    const confidenceBadge = document.createElement("div");
+    const confidencePercent = Math.round(confidence * 10000) / 100;
+    confidenceBadge.textContent = confidencePercent + "%";
+    
+    confidenceBadge.style.position = "absolute";
+    confidenceBadge.style.top = "8px";
+    confidenceBadge.style.right = "8px";
+    confidenceBadge.style.zIndex = "10";
+    confidenceBadge.style.pointerEvents = "none";
+    
+    confidenceBadge.style.fontFamily = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
+    confidenceBadge.style.fontSize = "12px";
+    confidenceBadge.style.fontWeight = "600";
+    confidenceBadge.style.color = "#ffffff";
+    confidenceBadge.style.background = "rgba(76, 175, 80, 0.9)";
+    confidenceBadge.style.backdropFilter = "blur(8px)";
+    confidenceBadge.style.padding = "4px 8px";
+    confidenceBadge.style.borderRadius = "12px";
+    confidenceBadge.style.boxShadow = "0 2px 8px rgba(0, 0, 0, 0.3)";
+    
+    el.appendChild(confidenceBadge);
+  }
+
+  // Toggle outline on click
+  el.style.cursor = "pointer";
+  el.addEventListener("click", function () {
+    if (el.style.border === "none" || el.style.border === "") {
+      el.style.border = "3px solid rgba(76, 175, 80, 0.8)";
+      el.style.backgroundColor = "rgba(76, 175, 80, 0.1)";
+    } else {
+      el.style.border = "none";
+      el.style.backgroundColor = "transparent";
+    }
+  });
+
   // Add feedback buttons if game mode is enabled
   if (typeof addFeedbackButtons !== 'undefined') {
     const checkGameMode = typeof isGameModeEnabled !== 'undefined' ? isGameModeEnabled : 
@@ -523,13 +612,15 @@ const observer = new MutationObserver(function (mutations) {
 // Boot - check enabled state first
 function initializeExtension() {
   if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-    chrome.storage.local.get(['enabled'], (result) => {
+    chrome.storage.local.get(['enabled', 'outlineMode'], (result) => {
       extensionEnabled = result.enabled !== false; // Default to true
+      outlineMode = result.outlineMode === true;
       startScanning();
     });
   } else {
     // If storage not available, default to enabled and start scanning
     extensionEnabled = true;
+    outlineMode = false;
     startScanning();
   }
 }
