@@ -337,8 +337,14 @@ function outlineWithCTA(el, score, confidence = null) {
  * Blur AI image and show confidence rating
  */
 function blurImageWithConfidence(img, score, confidence = null) {
-  if (img.dataset.aiBlurred === "true") return;
+  if (img.dataset.aiBlurred === "true" || img.dataset.aiOutline === "true") return;
   if (!img.complete || img.naturalWidth === 0) return;
+  
+  // Check if outline mode is enabled
+  if (outlineMode) {
+    outlineImageWithConfidence(img, score, confidence);
+    return;
+  }
   
   img.dataset.aiBlurred = "true";
   
