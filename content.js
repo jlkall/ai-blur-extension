@@ -113,11 +113,11 @@ function scoreText(text) {
   } else {
     console.warn("[CloseAI] scoreParagraphSync not available, using fallback");
     // Fallback: simple word count heuristic
-    if (words > 150) return 0.9;
-    if (words > 100) return 0.7;
-    if (words > 60) return 0.5;
-    if (words > 40) return 0.3;
-    return 0.1;
+  if (words > 150) return 0.9;
+  if (words > 100) return 0.7;
+  if (words > 60) return 0.5;
+  if (words > 40) return 0.3;
+  return 0.1;
   }
 }
 
@@ -233,10 +233,14 @@ function blurWithCTA(el, score, confidence = null) {
   el.appendChild(span);
   
   // Add feedback buttons if game mode is enabled
-  if (typeof addFeedbackButtons !== 'undefined' && typeof gameModeEnabled !== 'undefined' && gameModeEnabled()) {
-    setTimeout(() => {
-      addFeedbackButtons(el, score, confidence, false);
-    }, 100);
+  if (typeof addFeedbackButtons !== 'undefined') {
+    const checkGameMode = typeof isGameModeEnabled !== 'undefined' ? isGameModeEnabled : 
+                         (typeof gameModeEnabled !== 'undefined' ? gameModeEnabled : () => false);
+    if (checkGameMode()) {
+      setTimeout(() => {
+        addFeedbackButtons(el, score, confidence, false);
+      }, 100);
+    }
   }
 }
 
@@ -314,10 +318,14 @@ function blurImageWithConfidence(img, score, confidence = null) {
   });
   
   // Add feedback buttons if game mode is enabled
-  if (typeof addFeedbackButtons !== 'undefined' && typeof gameModeEnabled !== 'undefined' && gameModeEnabled()) {
-    setTimeout(() => {
-      addFeedbackButtons(img, score, confidence, true);
-    }, 100);
+  if (typeof addFeedbackButtons !== 'undefined') {
+    const checkGameMode = typeof isGameModeEnabled !== 'undefined' ? isGameModeEnabled : 
+                         (typeof gameModeEnabled !== 'undefined' ? gameModeEnabled : () => false);
+    if (checkGameMode()) {
+      setTimeout(() => {
+        addFeedbackButtons(img, score, confidence, true);
+      }, 100);
+    }
   }
 }
 
@@ -504,7 +512,7 @@ const observer = new MutationObserver(function (mutations) {
       if (n.nodeType === Node.ELEMENT_NODE) {
         // Debounce scanning
         setTimeout(() => {
-          scan(n);
+        scan(n);
           scanImages(n);
         }, 100);
       }
@@ -537,12 +545,12 @@ function startScanning() {
       });
     } else {
       document.addEventListener("DOMContentLoaded", () => {
-        scan(document.body);
+scan(document.body);
         scanImages(document.body);
-        observer.observe(document.body, {
-          childList: true,
-          subtree: true
-        });
+observer.observe(document.body, {
+  childList: true,
+  subtree: true
+});
       });
     }
   }

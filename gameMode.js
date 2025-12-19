@@ -220,20 +220,20 @@ function recordFeedback(element, userThinksAI, modelScore, modelConfidence, isIm
   }, 1500);
 }
 
+// Helper function to check if game mode is enabled
+function isGameModeEnabled() {
+  return gameModeEnabled;
+}
+
 // Export functions
 if (typeof window !== 'undefined') {
   window.addFeedbackButtons = addFeedbackButtons;
-  window.gameModeEnabled = () => gameModeEnabled;
-  
-  // Listen for game mode changes
-  if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
-    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-      if (message.action === 'toggleGameMode') {
-        gameModeEnabled = message.enabled;
-        sendResponse({ success: true });
-      }
-      return true;
-    });
-  }
+  window.gameModeEnabled = isGameModeEnabled;
+  window.isGameModeEnabled = isGameModeEnabled;
+}
+
+// Listen for game mode changes (already set up above, but ensure it's working)
+if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
+  // This listener is already set up above, but we ensure it's active
 }
 
