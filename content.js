@@ -610,12 +610,48 @@ function removeAllBlurs() {
   });
 
   // Remove image blurs
-  const blurredImages = document.querySelectorAll('img[data-ai-blur="true"]');
+  const blurredImages = document.querySelectorAll('img[data-ai-blurred="true"]');
   blurredImages.forEach(img => {
-    img.dataset.aiBlur = "false";
+    img.dataset.aiBlurred = "false";
     img.style.filter = "none";
     // Remove confidence badges
     const badges = img.parentElement?.querySelectorAll('div[style*="top: 8px; right: 8px;"]');
+    badges?.forEach(badge => badge.remove());
+  });
+}
+
+/**
+ * Remove all outline effects from the page
+ */
+function removeAllOutlines() {
+  // Remove text outlines
+  const outlinedTexts = document.querySelectorAll('[data-ai-outline="true"]');
+  outlinedTexts.forEach(el => {
+    el.dataset.aiOutline = "false";
+    el.style.border = "none";
+    el.style.backgroundColor = "transparent";
+    el.style.boxShadow = "none";
+    el.style.padding = "";
+    el.style.borderRadius = "";
+    // Remove confidence badges
+    const badges = el.querySelectorAll('div[style*="top: 8px; right: 8px;"]');
+    badges.forEach(badge => badge.remove());
+  });
+
+  // Remove image outlines
+  const outlinedImages = document.querySelectorAll('img[data-ai-outline="true"]');
+  outlinedImages.forEach(img => {
+    img.dataset.aiOutline = "false";
+    const container = img.parentElement;
+    if (container && container.style.border) {
+      container.style.border = "none";
+      container.style.backgroundColor = "transparent";
+      container.style.boxShadow = "none";
+      container.style.padding = "";
+      container.style.borderRadius = "";
+    }
+    // Remove confidence badges
+    const badges = container?.querySelectorAll('div[style*="top: 8px; right: 8px;"]');
     badges?.forEach(badge => badge.remove());
   });
 }
@@ -629,7 +665,7 @@ async function scan(root) {
   const elements = root.querySelectorAll("p, li, div[class*='content'], div[class*='text'], article");
 
   for (const el of elements) {
-    if (el.dataset.aiBlur === "true") continue;
+    if (el.dataset.aiBlur === "true" || el.dataset.aiOutline === "true") continue;
     if (el.dataset.aiScanned === "true") continue;
 
     const text = el.innerText;
