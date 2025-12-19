@@ -144,6 +144,39 @@
             opacity: 0.8;
             margin-top: 4px;
         }
+
+        .stats-container {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 16px;
+            display: none;
+        }
+
+        .stats-container.active {
+            display: block;
+        }
+
+        .stats-title {
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 12px;
+        }
+
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 12px;
+        }
+
+        .stat-label {
+            opacity: 0.9;
+        }
+
+        .stat-value {
+            font-weight: 600;
+        }
     </style>
 </head>
 <body>
@@ -163,6 +196,35 @@
             </div>
             <div class="toggle-switch active" id="toggleSwitch">
                 <div class="toggle-slider"></div>
+            </div>
+        </div>
+
+        <div class="toggle-container">
+            <div>
+                <div class="toggle-label">
+                    <span class="icon">🎮</span>
+                    Game Mode
+                </div>
+                <div class="status-text" id="gameModeStatusText">Disabled</div>
+            </div>
+            <div class="toggle-switch" id="gameModeSwitch">
+                <div class="toggle-slider"></div>
+            </div>
+        </div>
+
+        <div class="stats-container" id="statsContainer">
+            <div class="stats-title">📊 Your Stats</div>
+            <div class="stat-item">
+                <span class="stat-label">Total Feedback:</span>
+                <span class="stat-value" id="statTotal">0</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">You Agree with Model:</span>
+                <span class="stat-value" id="statAgree">0%</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Model Accuracy:</span>
+                <span class="stat-value" id="statAccuracy">0%</span>
             </div>
         </div>
 

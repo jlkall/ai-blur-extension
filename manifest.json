@@ -28,6 +28,7 @@
         "signals.js",
         "scorer.js",
         "googleSearch.js",
+        "gameMode.js",
         "content.js"
       ],
       "run_at": "document_idle"

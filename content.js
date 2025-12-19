@@ -231,6 +231,13 @@ function blurWithCTA(el, score, confidence = null) {
 
   el.innerHTML = "";
   el.appendChild(span);
+  
+  // Add feedback buttons if game mode is enabled
+  if (typeof addFeedbackButtons !== 'undefined' && typeof gameModeEnabled !== 'undefined' && gameModeEnabled()) {
+    setTimeout(() => {
+      addFeedbackButtons(el, score, confidence, false);
+    }, 100);
+  }
 }
 
 /**
@@ -305,6 +312,13 @@ function blurImageWithConfidence(img, score, confidence = null) {
       img.style.filter = "blur(" + BLUR_PX + "px)";
     }
   });
+  
+  // Add feedback buttons if game mode is enabled
+  if (typeof addFeedbackButtons !== 'undefined' && typeof gameModeEnabled !== 'undefined' && gameModeEnabled()) {
+    setTimeout(() => {
+      addFeedbackButtons(img, score, confidence, true);
+    }, 100);
+  }
 }
 
 /**
