@@ -221,7 +221,7 @@
         const submitButton = document.getElementById('submitButton');
         const successMessage = document.getElementById('successMessage');
 
-        form.addEventListener('submit', (e) => {
+        form.addEventListener('submit', async (e) => {
             e.preventDefault();
             
             const email = emailInput.value.trim();
@@ -231,17 +231,38 @@
                 return;
             }
 
-            // Create mailto link with email data
-            const subject = encodeURIComponent('CloseAI - New Interest Submission');
-            const body = encodeURIComponent(`New interest submission from: ${email}\n\nUser wants to be notified when CloseAI extension is live!`);
-            const mailtoLink = `mailto:jkallungal22@gmail.com?subject=${subject}&body=${body}`;
-            
-            // Open mailto (will open default email client)
-            window.location.href = mailtoLink;
-            
-            // Show success message
-            showSuccess();
-            emailInput.value = '';
+            // Disable button and show loading state
+            submitButton.disabled = true;
+            submitButton.textContent = 'Submitting...';
+
+            try {
+                // Using Formspree to send email automatically
+                // Replace 'YOUR_FORM_ID' below with your Formspree form ID
+                const response = await fetch('https://formspree.io/f/YOUR_FORM_ID', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        email: email,
+                        _subject: 'CloseAI - New Interest Submission',
+                        message: `New interest submission from: ${email}\n\nUser wants to be notified when CloseAI extension is live!`
+                    })
+                });
+
+                if (response.ok) {
+                    showSuccess();
+                    emailInput.value = '';
+                } else {
+                    throw new Error('Submission failed');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Failed to submit. Please try again later.');
+            } finally {
+                submitButton.disabled = false;
+                submitButton.textContent = 'Get Notified When It\'s Live';
+            }
         });
 
         function showSuccess() {
