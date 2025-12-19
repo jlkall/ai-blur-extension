@@ -3,6 +3,10 @@
   "name": "CloseAI",
   "version": "0.3.0",
   "description": "Detects and blurs AI-generated text and images using advanced ML models. Shows confidence ratings.",
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "CloseAI"
+  },
   "permissions": [],
   "web_accessible_resources": [
     {

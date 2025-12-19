@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CloseAI</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            width: 320px;
+            padding: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .header {
+            padding: 20px;
+            text-align: center;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .header h1 {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+
+        .header p {
+            font-size: 12px;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 20px;
+        }
+
+        .link-button {
+            display: block;
+            width: 100%;
+            padding: 14px 20px;
+            background: white;
+            color: #667eea;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 14px;
+            text-align: center;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+            margin-bottom: 12px;
+        }
+
+        .link-button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .link-button:active {
+            transform: translateY(0);
+        }
+
+        .link-button.github {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .link-button.github:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .info {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
+            font-size: 11px;
+            opacity: 0.8;
+            text-align: center;
+            line-height: 1.5;
+        }
+
+        .icon {
+            display: inline-block;
+            margin-right: 8px;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>CloseAI</h1>
+        <p>AI Content Detection</p>
+    </div>
+    
+    <div class="content">
+        <a href="https://jlkall.github.io/ai-blur-extension/" target="_blank" class="link-button">
+            <span class="icon">🌐</span>
+            Visit Website
+        </a>
+        
+        <a href="https://github.com/jlkall/ai-blur-extension" target="_blank" class="link-button github">
+            <span class="icon">📦</span>
+            View on GitHub
+        </a>
+        
+        <div class="info">
+            CloseAI detects and blurs AI-generated content using advanced ML models. All processing happens locally in your browser.
+        </div>
+    </div>
+</body>
+</html>
+
