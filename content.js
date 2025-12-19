@@ -7,13 +7,15 @@ const BLUR_PX = 8;
 // Extension enabled state (default to true)
 let extensionEnabled = true;
 let outlineMode = false;
+let showCertainty = false;
 
 // Load enabled state from storage (with defensive check)
 function loadEnabledState() {
   if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-    chrome.storage.local.get(['enabled', 'outlineMode'], (result) => {
+    chrome.storage.local.get(['enabled', 'outlineMode', 'showCertainty'], (result) => {
       extensionEnabled = result.enabled !== false; // Default to true
       outlineMode = result.outlineMode === true;
+      showCertainty = result.showCertainty === true;
       if (!extensionEnabled) {
         console.log("[CloseAI] Extension is disabled");
       }
@@ -53,8 +55,82 @@ if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage)
         scanImages(document.body);
       }
       sendResponse({ success: true });
+    } else if (message.action === 'toggleCertainty') {
+      showCertainty = message.enabled;
+      console.log("[CloseAI] Show certainty toggled:", showCertainty ? "enabled" : "disabled");
+      
+      // Update all existing flagged assets
+      updateAllCertaintyBlobs();
+      sendResponse({ success: true });
     }
     return true;
+  });
+}
+
+/**
+ * Update all certainty blobs on the page
+ */
+function updateAllCertaintyBlobs() {
+  // Update text elements
+  const textElements = document.querySelectorAll('[data-ai-blur="true"], [data-ai-outline="true"]');
+  textElements.forEach(el => {
+    const score = parseFloat(el.dataset.aiScore) || 0;
+    const confidence = el.dataset.aiConfidence ? parseFloat(el.dataset.aiConfidence) : null;
+    
+    // Remove existing certainty blob
+    const existingBlob = el.querySelector('.closeai-certainty-blob');
+    if (existingBlob) {
+      existingBlob.remove();
+    }
+    
+    // Remove existing confidence badge if showing certainty
+    if (showCertainty) {
+      const badges = el.querySelectorAll('div[style*="top: 8px; right: 8px;"]');
+      badges.forEach(badge => {
+        if (!badge.classList.contains('closeai-certainty-blob')) {
+          badge.remove();
+        }
+      });
+    }
+    
+    // Add certainty blob if enabled
+    if (showCertainty) {
+      addCertaintyBlob(el, score, confidence);
+    }
+  });
+  
+  // Update image elements
+  const imageElements = document.querySelectorAll('img[data-ai-blurred="true"], img[data-ai-outline="true"]');
+  imageElements.forEach(img => {
+    const container = img.parentElement;
+    // Get score from either container or image itself
+    const score = parseFloat(container?.dataset.aiScore || img.dataset.aiScore) || 0;
+    const confidence = container?.dataset.aiConfidence ? parseFloat(container.dataset.aiConfidence) : 
+                      (img.dataset.aiConfidence ? parseFloat(img.dataset.aiConfidence) : null);
+    
+    if (container) {
+      
+      // Remove existing certainty blob
+      const existingBlob = container.querySelector('.closeai-certainty-blob');
+      if (existingBlob) {
+        existingBlob.remove();
+      }
+      
+      // Remove existing confidence badge if showing certainty
+      if (showCertainty) {
+        const badges = container.querySelectorAll('div[style*="top: 8px; right: 8px;"]');
+        badges.forEach(badge => {
+          if (!badge.classList.contains('closeai-certainty-blob')) {
+            badge.remove();
+          }
+        });
+      }
+      
+      // Add certainty blob if enabled
+      if (showCertainty) {
+        addCertaintyBlob(container, score, confidence);
+      }
+    }
   });
 }
 
@@ -186,6 +262,59 @@ async function scoreTextAsync(text) {
   return { score: fallbackScore, confidence: null };
 }
 
+/**
+ * Calculate AI certainty from score and confidence
+ * Certainty combines both the detection score and confidence level
+ */
+function calculateCertainty(score, confidence) {
+  // If we have confidence, use weighted average: 60% score, 40% confidence
+  // If no confidence, use score as certainty
+  if (confidence !== null && confidence !== undefined) {
+    return (score * 0.6 + confidence * 0.4);
+  }
+  return score;
+}
+
+/**
+ * Add a small certainty blob to the top right corner of an element
+ */
+function addCertaintyBlob(element, score, confidence) {
+  // Remove existing certainty blob if any
+  const existingBlob = element.querySelector('.closeai-certainty-blob');
+  if (existingBlob) {
+    existingBlob.remove();
+  }
+  
+  const certainty = calculateCertainty(score, confidence);
+  const certaintyPercent = Math.round(certainty * 100);
+  
+  const blob = document.createElement("div");
+  blob.className = "closeai-certainty-blob";
+  blob.textContent = certaintyPercent + "%";
+  
+  // Small blob styling - top right corner
+  blob.style.position = "absolute";
+  blob.style.top = "4px";
+  blob.style.right = "4px";
+  blob.style.zIndex = "100";
+  blob.style.pointerEvents = "none";
+  
+  // Small, minimal blob design
+  blob.style.fontFamily = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
+  blob.style.fontSize = "10px";
+  blob.style.fontWeight = "700";
+  blob.style.color = "#ffffff";
+  blob.style.background = certainty >= 0.7 ? "rgba(244, 67, 54, 0.9)" : certainty >= 0.5 ? "rgba(255, 152, 0, 0.9)" : "rgba(76, 175, 80, 0.9)";
+  blob.style.padding = "3px 6px";
+  blob.style.borderRadius = "10px";
+  blob.style.boxShadow = "0 1px 4px rgba(0, 0, 0, 0.4)";
+  blob.style.lineHeight = "1.2";
+  blob.style.minWidth = "28px";
+  blob.style.textAlign = "center";
+  
+  element.appendChild(blob);
+}
+
 function blurWithCTA(el, score, confidence = null) {
   if (el.dataset.aiBlur === "true" || el.dataset.aiOutline === "true") return;
   if (!el.innerText || el.innerText.trim().length < 40) return;
@@ -211,8 +340,8 @@ function blurWithCTA(el, score, confidence = null) {
   span.style.position = "relative";
   span.style.zIndex = "1";
 
-  // Confidence badge in corner
-  if (confidence !== null && confidence !== undefined) {
+  // Confidence badge in corner (only if not showing certainty blob)
+  if (confidence !== null && confidence !== undefined && !showCertainty) {
     const confidenceBadge = document.createElement("div");
     const confidencePercent = Math.round(confidence * 10000) / 100; // Round to nearest 100th
     confidenceBadge.textContent = confidencePercent + "%";
@@ -236,6 +365,11 @@ function blurWithCTA(el, score, confidence = null) {
     confidenceBadge.style.boxShadow = "0 2px 8px rgba(0, 0, 0, 0.3)";
     
     el.appendChild(confidenceBadge);
+  }
+  
+  // Add certainty blob if enabled
+  if (showCertainty) {
+    addCertaintyBlob(el, score, confidence);
   }
 
   // Toggle blur on text click
@@ -273,6 +407,12 @@ function outlineWithCTA(el, score, confidence = null) {
   if (!el.innerText || el.innerText.trim().length < 40) return;
 
   el.dataset.aiOutline = "true";
+  
+  // Store score and confidence for later updates
+  el.dataset.aiScore = score;
+  if (confidence !== null && confidence !== undefined) {
+    el.dataset.aiConfidence = confidence;
+  }
   el.style.position = "relative";
   el.style.isolation = "isolate";
   el.style.zIndex = "1";
@@ -284,8 +424,8 @@ function outlineWithCTA(el, score, confidence = null) {
   el.style.backgroundColor = "rgba(76, 175, 80, 0.1)";
   el.style.boxShadow = "0 0 0 1px rgba(76, 175, 80, 0.3), 0 2px 8px rgba(76, 175, 80, 0.2)";
 
-  // Confidence badge in corner
-  if (confidence !== null && confidence !== undefined) {
+  // Confidence badge in corner (only if not showing certainty blob)
+  if (confidence !== null && confidence !== undefined && !showCertainty) {
     const confidenceBadge = document.createElement("div");
     const confidencePercent = Math.round(confidence * 10000) / 100;
     confidenceBadge.textContent = confidencePercent + "%";
@@ -307,6 +447,17 @@ function outlineWithCTA(el, score, confidence = null) {
     confidenceBadge.style.boxShadow = "0 2px 8px rgba(0, 0, 0, 0.3)";
     
     el.appendChild(confidenceBadge);
+  }
+  
+  // Add certainty blob if enabled
+  if (showCertainty) {
+    addCertaintyBlob(el, score, confidence);
+  }
+  
+  // Store score and confidence for later updates
+  el.dataset.aiScore = score;
+  if (confidence !== null && confidence !== undefined) {
+    el.dataset.aiConfidence = confidence;
   }
 
   // Toggle outline on click
@@ -348,6 +499,12 @@ function blurImageWithConfidence(img, score, confidence = null) {
   
   img.dataset.aiBlurred = "true";
   
+  // Store score and confidence on image for later updates
+  img.dataset.aiScore = score;
+  if (confidence !== null && confidence !== undefined) {
+    img.dataset.aiConfidence = confidence;
+  }
+  
   // Apply blur to image
   img.style.filter = "blur(" + BLUR_PX + "px)";
   img.style.transition = "filter 0.15s ease";
@@ -372,8 +529,23 @@ function blurImageWithConfidence(img, score, confidence = null) {
     }
   }
   
-  // Add confidence badge in corner
-  if (confidence !== null && confidence !== undefined) {
+  // Ensure we have a container for badges
+  let container = img.parentElement;
+  if (!container || container.style.position !== 'relative') {
+    const wrapper = document.createElement("div");
+    wrapper.style.position = "relative";
+    wrapper.style.display = "inline-block";
+    wrapper.style.isolation = "isolate";
+    wrapper.style.zIndex = "1";
+    if (img.parentNode) {
+      img.parentNode.insertBefore(wrapper, img);
+      wrapper.appendChild(img);
+    }
+    container = wrapper;
+  }
+  
+  // Add confidence badge in corner (only if not showing certainty blob)
+  if (confidence !== null && confidence !== undefined && !showCertainty) {
     const confidenceBadge = document.createElement("div");
     const confidencePercent = Math.round(confidence * 10000) / 100; // Round to nearest 100th
     confidenceBadge.textContent = confidencePercent + "%";
@@ -396,10 +568,18 @@ function blurImageWithConfidence(img, score, confidence = null) {
     confidenceBadge.style.borderRadius = "12px";
     confidenceBadge.style.boxShadow = "0 2px 8px rgba(0, 0, 0, 0.3)";
     
-    const parent = img.parentElement;
-    if (parent) {
-      parent.appendChild(confidenceBadge);
-    }
+    container.appendChild(confidenceBadge);
+  }
+  
+  // Add certainty blob if enabled
+  if (showCertainty) {
+    addCertaintyBlob(container, score, confidence);
+  }
+  
+  // Store score and confidence for later updates
+  container.dataset.aiScore = score;
+  if (confidence !== null && confidence !== undefined) {
+    container.dataset.aiConfidence = confidence;
   }
   
   // Toggle blur on image click
@@ -433,6 +613,12 @@ function outlineImageWithConfidence(img, score, confidence = null) {
   
   img.dataset.aiOutline = "true";
   
+  // Store score and confidence on image for later updates
+  img.dataset.aiScore = score;
+  if (confidence !== null && confidence !== undefined) {
+    img.dataset.aiConfidence = confidence;
+  }
+  
   // Ensure parent container is positioned
   let container = img.parentElement;
   if (!container || container.style.position !== 'relative') {
@@ -460,8 +646,8 @@ function outlineImageWithConfidence(img, score, confidence = null) {
   container.style.boxShadow = "0 0 0 1px rgba(76, 175, 80, 0.3), 0 2px 8px rgba(76, 175, 80, 0.2)";
   container.style.cursor = "pointer";
   
-  // Add confidence badge in corner
-  if (confidence !== null && confidence !== undefined) {
+  // Add confidence badge in corner (only if not showing certainty blob)
+  if (confidence !== null && confidence !== undefined && !showCertainty) {
     const confidenceBadge = document.createElement("div");
     const confidencePercent = Math.round(confidence * 10000) / 100;
     confidenceBadge.textContent = confidencePercent + "%";
@@ -483,6 +669,17 @@ function outlineImageWithConfidence(img, score, confidence = null) {
     confidenceBadge.style.boxShadow = "0 2px 8px rgba(0, 0, 0, 0.3)";
     
     container.appendChild(confidenceBadge);
+  }
+  
+  // Add certainty blob if enabled
+  if (showCertainty) {
+    addCertaintyBlob(container, score, confidence);
+  }
+  
+  // Store score and confidence for later updates
+  container.dataset.aiScore = score;
+  if (confidence !== null && confidence !== undefined) {
+    container.dataset.aiConfidence = confidence;
   }
   
   // Toggle outline on click
@@ -738,15 +935,17 @@ const observer = new MutationObserver(function (mutations) {
 // Boot - check enabled state first
 function initializeExtension() {
   if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-    chrome.storage.local.get(['enabled', 'outlineMode'], (result) => {
+    chrome.storage.local.get(['enabled', 'outlineMode', 'showCertainty'], (result) => {
       extensionEnabled = result.enabled !== false; // Default to true
       outlineMode = result.outlineMode === true;
+      showCertainty = result.showCertainty === true;
       startScanning();
     });
   } else {
     // If storage not available, default to enabled and start scanning
     extensionEnabled = true;
     outlineMode = false;
+    showCertainty = false;
     startScanning();
   }
 }
