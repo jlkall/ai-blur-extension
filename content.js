@@ -103,33 +103,32 @@ function updateAllCertaintyBlobs() {
   const imageElements = document.querySelectorAll('img[data-ai-blurred="true"], img[data-ai-outline="true"]');
   imageElements.forEach(img => {
     const container = img.parentElement;
+    if (!container) return;
+    
     // Get score from either container or image itself
-    const score = parseFloat(container?.dataset.aiScore || img.dataset.aiScore) || 0;
-    const confidence = container?.dataset.aiConfidence ? parseFloat(container.dataset.aiConfidence) : 
+    const score = parseFloat(container.dataset.aiScore || img.dataset.aiScore) || 0;
+    const confidence = container.dataset.aiConfidence ? parseFloat(container.dataset.aiConfidence) : 
                       (img.dataset.aiConfidence ? parseFloat(img.dataset.aiConfidence) : null);
     
-    if (container) {
-      
-      // Remove existing certainty blob
-      const existingBlob = container.querySelector('.closeai-certainty-blob');
-      if (existingBlob) {
-        existingBlob.remove();
-      }
-      
-      // Remove existing confidence badge if showing certainty
-      if (showCertainty) {
-        const badges = container.querySelectorAll('div[style*="top: 8px; right: 8px;"]');
-        badges.forEach(badge => {
-          if (!badge.classList.contains('closeai-certainty-blob')) {
-            badge.remove();
-          }
-        });
-      }
-      
-      // Add certainty blob if enabled
-      if (showCertainty) {
-        addCertaintyBlob(container, score, confidence);
-      }
+    // Remove existing certainty blob
+    const existingBlob = container.querySelector('.closeai-certainty-blob');
+    if (existingBlob) {
+      existingBlob.remove();
+    }
+    
+    // Remove existing confidence badge if showing certainty
+    if (showCertainty) {
+      const badges = container.querySelectorAll('div[style*="top: 8px; right: 8px;"]');
+      badges.forEach(badge => {
+        if (!badge.classList.contains('closeai-certainty-blob')) {
+          badge.remove();
+        }
+      });
+    }
+    
+    // Add certainty blob if enabled
+    if (showCertainty) {
+      addCertaintyBlob(container, score, confidence);
     }
   });
 }
@@ -209,7 +208,7 @@ function scoreText(text) {
   if (words > 60) return 0.5;
   if (words > 40) return 0.3;
   return 0.1;
-  }
+}
 }
 
 /**
