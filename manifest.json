@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "AI Blur MVP",
+  "version": "0.2.0",
+  "description": "Blurs AI-generated content using local ML",
+  "permissions": [],
+  "web_accessible_resources": [
+    {
+      "resources": ["ml/*"],
+      "matches": ["<all_urls>"]
+    }
+  ],
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": [
+        "ml/ort.min.js",
+        "ml/detector.js",
+        "signals.js",
+        "scorer.js",
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}
