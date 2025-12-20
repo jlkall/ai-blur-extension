@@ -605,24 +605,39 @@ function isInMapContainer(element) {
   if (!element) return false;
   
   let currentElement = element;
-  const maxDepth = 15; // Check up to 15 levels up
+  const maxDepth = 20; // Check up to 20 levels up
   
   for (let i = 0; i < maxDepth && currentElement; i++) {
     const className = (currentElement.className || '').toLowerCase();
     const id = (currentElement.id || '').toLowerCase();
     const tagName = (currentElement.tagName || '').toLowerCase();
     const role = (currentElement.getAttribute?.('role') || '').toLowerCase();
+    const ariaLabel = (currentElement.getAttribute?.('aria-label') || '').toLowerCase();
+    
+    // Google Maps specific patterns (most common)
+    if (className.includes('gm-') || 
+        className.includes('gm-style') || 
+        className.includes('gm-map') ||
+        className.includes('gmnoprint') ||
+        className.includes('gmnoscreen') ||
+        className.includes('gm-style-pbc') ||
+        id.includes('gm-') ||
+        id.includes('google-map') ||
+        id.includes('google-maps')) {
+      return true;
+    }
     
     // Check for map-related class names (comprehensive list)
     const mapClassPatterns = [
       'map', 'maps', 'map-container', 'map-canvas', 'map-view', 'map-wrapper',
       'google-map', 'google-maps', 'apple-map', 'apple-maps',
       'leaflet', 'mapbox', 'map-tile', 'map-tiles', 'mapboxgl',
-      'gm-style', 'gm-map', 'gmnoprint', 'gmnoscreen',
       'mapbox-map', 'mapboxgl-map', 'mapboxgl-canvas',
       'ol-viewport', 'ol-map', // OpenLayers
       'esri-view', 'esri-map', // ArcGIS
-      'map-viewport', 'map-controls', 'map-overlay'
+      'map-viewport', 'map-controls', 'map-overlay',
+      'places-container', // Google Places
+      'local-results' // Google local results with maps
     ];
     
     for (const pattern of mapClassPatterns) {
@@ -644,8 +659,12 @@ function isInMapContainer(element) {
       }
     }
     
-    // Check for map-related roles
-    if (role === 'application' && (className.includes('map') || id.includes('map'))) {
+    // Check for map-related roles and aria-labels
+    if (role === 'application' && (className.includes('map') || id.includes('map') || ariaLabel.includes('map'))) {
+      return true;
+    }
+    
+    if (ariaLabel.includes('map') || ariaLabel.includes('google map') || ariaLabel.includes('apple map')) {
       return true;
     }
     
@@ -655,7 +674,9 @@ function isInMapContainer(element) {
       if (iframeSrc.includes('maps.googleapis.com') || 
           iframeSrc.includes('maps.google.com') ||
           iframeSrc.includes('maps.apple.com') ||
-          iframeSrc.includes('map') && (iframeSrc.includes('google') || iframeSrc.includes('apple'))) {
+          iframeSrc.includes('google.com/maps') ||
+          iframeSrc.includes('apple.com/maps') ||
+          (iframeSrc.includes('map') && (iframeSrc.includes('google') || iframeSrc.includes('apple')))) {
         return true;
       }
     }
@@ -664,12 +685,44 @@ function isInMapContainer(element) {
     if (currentElement.hasAttribute && (
         currentElement.hasAttribute('data-map') ||
         currentElement.hasAttribute('data-google-map') ||
-        currentElement.getAttribute('data-type') === 'map'
+        currentElement.getAttribute('data-type') === 'map' ||
+        currentElement.getAttribute('data-ved') // Google Maps often has data-ved
+      )) {
+      return true;
+    }
+    
+    // Check for Google Maps widget indicators
+    if (currentElement.querySelector && (
+        currentElement.querySelector('[class*="gm-"]') ||
+        currentElement.querySelector('[id*="map"]') ||
+        currentElement.querySelector('iframe[src*="maps"]')
       )) {
       return true;
     }
     
     currentElement = currentElement.parentElement;
+  }
+  
+  // Also check if we're on a Google search results page with embedded map
+  if (window.location.hostname.includes('google.com') && window.location.pathname === '/search') {
+    // Check if element is in the right column (where Google embeds maps)
+    const rect = element.getBoundingClientRect();
+    const windowWidth = window.innerWidth;
+    // If element is in the right 40% of the screen on Google search, likely a map
+    if (rect.left > windowWidth * 0.6 && rect.width > 200) {
+      // Additional check: look for map indicators nearby
+      const nearbyElements = document.elementsFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+      for (const nearby of nearbyElements) {
+        if (nearby !== element) {
+          const nearbyClass = (nearby.className || '').toLowerCase();
+          const nearbyId = (nearby.id || '').toLowerCase();
+          if (nearbyClass.includes('gm-') || nearbyClass.includes('map') || 
+              nearbyId.includes('map') || nearby.tagName === 'IFRAME') {
+            return true;
+          }
+        }
+      }
+    }
   }
   
   return false;
