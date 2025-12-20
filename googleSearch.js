@@ -8,55 +8,39 @@
 
   // Extension enabled state (default to true)
   let extensionEnabled = true;
+  let isProcessing = false; // Flag to prevent recursive calls
+  let hasProcessed = false; // Flag to prevent multiple modifications on same page load
 
   // Load enabled state from storage
-  function loadEnabledState() {
+  function loadEnabledState(callback) {
     if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
       chrome.storage.local.get(['enabled'], (result) => {
-        const wasEnabled = extensionEnabled;
         extensionEnabled = result.enabled !== false; // Default to true
-        if (!extensionEnabled) {
-          console.log("[CloseAI] Google search modification disabled");
-          // Immediately remove -ai if we're on a search page
-          if (isGoogleSearch()) {
-            removeMinusAI();
-          }
-        } else if (!wasEnabled && isGoogleSearch()) {
-          // If we just enabled, add -ai
-          appendMinusAI();
-        }
+        if (callback) callback();
       });
+    } else {
+      if (callback) callback();
     }
   }
-
-  // Load state on initialization
-  loadEnabledState();
-  
-  // Also check periodically to catch state changes
-  setInterval(() => {
-    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-      chrome.storage.local.get(['enabled'], (result) => {
-        const newState = result.enabled !== false;
-        if (newState !== extensionEnabled) {
-          extensionEnabled = newState;
-          if (isGoogleSearch()) {
-            if (extensionEnabled) {
-              appendMinusAI();
-            } else {
-              removeMinusAI();
-            }
-          }
-        }
-      });
-    }
-  }, 500);
 
   // Listen for toggle messages from popup
   if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (message.action === 'toggle') {
+        const wasEnabled = extensionEnabled;
         extensionEnabled = message.enabled;
         console.log("[CloseAI] Google search modification toggled:", extensionEnabled ? "enabled" : "disabled");
+        
+        // Only modify if state actually changed and we're on a search page
+        if (wasEnabled !== extensionEnabled && isGoogleSearch() && !isProcessing) {
+          hasProcessed = false; // Reset flag to allow modification
+          if (extensionEnabled) {
+            appendMinusAI();
+          } else {
+            removeMinusAI();
+          }
+        }
+        
         sendResponse({ success: true });
       }
       return true;
@@ -77,8 +61,8 @@
 
   // Remove -ai from query if extension is disabled
   function removeMinusAI() {
-    if (!isGoogleSearch()) return;
-
+    if (!isGoogleSearch() || isProcessing) return;
+    
     const params = new URLSearchParams(window.location.search);
     let query = params.get('q');
     
@@ -86,33 +70,32 @@
     
     // Check if -ai is appended and remove it
     const queryLower = query.toLowerCase().trim();
-    if (queryLower.endsWith(' -ai')) {
-      const newQuery = query.trim().slice(0, -4); // Remove ' -ai'
+    if (queryLower.endsWith(' -ai') || queryLower.endsWith('-ai')) {
+      isProcessing = true;
+      const newQuery = queryLower.endsWith(' -ai') 
+        ? query.trim().slice(0, -4) 
+        : query.trim().slice(0, -3);
       params.set('q', newQuery);
       
       const newUrl = window.location.pathname + '?' + params.toString() + (window.location.hash || '');
       if (window.location.href !== newUrl) {
-        window.location.href = newUrl;
+        // Use replaceState to avoid triggering navigation events
+        window.history.replaceState(null, '', newUrl);
+        // Update the search input if it exists
+        const searchInput = document.querySelector('input[name="q"]') ||
+                          document.querySelector('input[type="text"]') ||
+                          document.querySelector('textarea[name="q"]');
+        if (searchInput) {
+          searchInput.value = newQuery;
+        }
       }
-    } else if (queryLower.endsWith('-ai')) {
-      const newQuery = query.trim().slice(0, -3); // Remove '-ai'
-      params.set('q', newQuery);
-      
-      const newUrl = window.location.pathname + '?' + params.toString() + (window.location.hash || '');
-      if (window.location.href !== newUrl) {
-        window.location.href = newUrl;
-      }
+      setTimeout(() => { isProcessing = false; }, 100);
     }
   }
 
   // Modify URL to append -ai
   function appendMinusAI() {
-    if (!isGoogleSearch()) return;
-    if (!extensionEnabled) {
-      // If disabled, remove -ai if present
-      removeMinusAI();
-      return;
-    }
+    if (!isGoogleSearch() || isProcessing || !extensionEnabled) return;
 
     const params = new URLSearchParams(window.location.search);
     let query = params.get('q');
@@ -125,6 +108,7 @@
       return; // Already has -ai
     }
     
+    isProcessing = true;
     // Append -ai to the query
     const newQuery = query.trim() + ' -ai';
     params.set('q', newQuery);
@@ -136,6 +120,7 @@
     if (window.location.href !== newUrl) {
       window.location.href = newUrl;
     }
+    setTimeout(() => { isProcessing = false; }, 100);
   }
 
   // Intercept form submissions
@@ -186,53 +171,70 @@
   let lastUrl = window.location.href;
   
   function checkUrlChange() {
+    if (isProcessing) return;
+    
     const currentUrl = window.location.href;
-    if (currentUrl !== lastUrl) {
+    if (currentUrl !== lastUrl && !hasProcessed) {
       lastUrl = currentUrl;
+      hasProcessed = true; // Only process once per URL
       
       // Small delay to let page settle
       setTimeout(() => {
-        if (isGoogleSearch()) {
+        if (isGoogleSearch() && !isProcessing) {
+          loadEnabledState(() => {
+            if (extensionEnabled) {
+              appendMinusAI();
+            } else {
+              removeMinusAI();
+            }
+          });
+        }
+        hasProcessed = false; // Reset after processing
+      }, 200);
+    }
+  }
+
+  // Monitor URL changes (less aggressive)
+  const urlObserver = new MutationObserver(() => {
+    // Debounce the check
+    clearTimeout(urlObserver.timeout);
+    urlObserver.timeout = setTimeout(checkUrlChange, 500);
+  });
+  
+  // Also use popstate for back/forward navigation
+  window.addEventListener('popstate', function() {
+    hasProcessed = false; // Reset flag on navigation
+    setTimeout(() => {
+      if (isGoogleSearch() && !isProcessing) {
+        loadEnabledState(() => {
           if (extensionEnabled) {
             appendMinusAI();
           } else {
             removeMinusAI();
           }
-        }
-      }, 100);
-    }
-  }
-
-  // Monitor URL changes
-  const urlObserver = new MutationObserver(checkUrlChange);
-  
-  // Also use popstate for back/forward navigation
-  window.addEventListener('popstate', function() {
-    setTimeout(() => {
-      if (isGoogleSearch()) {
-        if (extensionEnabled) {
-          appendMinusAI();
-        } else {
-          removeMinusAI();
-        }
+        });
       }
-    }, 100);
+    }, 200);
   });
 
   // Initial setup
   function init() {
     if (isGoogleSearch()) {
-      if (extensionEnabled) {
-        appendMinusAI();
-      } else {
-        removeMinusAI();
-      }
-      interceptSearchForm();
-      
-      // Start observing
-      urlObserver.observe(document.body, {
-        childList: true,
-        subtree: true
+      loadEnabledState(() => {
+        if (extensionEnabled) {
+          appendMinusAI();
+        } else {
+          removeMinusAI();
+        }
+        interceptSearchForm();
+        
+        // Start observing (less aggressive)
+        if (document.body) {
+          urlObserver.observe(document.body, {
+            childList: true,
+            subtree: true
+          });
+        }
       });
     }
   }
@@ -243,8 +245,5 @@
   } else {
     init();
   }
-
-  // Also check periodically for SPA navigation
-  setInterval(checkUrlChange, 500);
 })();
 
