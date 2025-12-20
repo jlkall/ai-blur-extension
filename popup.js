@@ -12,6 +12,9 @@ chrome.storage.local.get(['enabled', 'gameMode', 'outlineMode', 'showCertainty',
     const showCertainty = result.showCertainty === true;
     updateCertaintyToggle(showCertainty);
     
+    // Set initial disabled state for other toggles
+    enableOtherToggles(enabled);
+    
     // Load and display stats
     if (result.feedbackData) {
         updateStats(result.feedbackData);
@@ -44,9 +47,35 @@ function updateToggle(enabled) {
     if (enabled) {
         toggleSwitch.classList.add('active');
         statusText.textContent = 'Enabled';
+        // Enable all other toggles
+        enableOtherToggles(true);
     } else {
         toggleSwitch.classList.remove('active');
         statusText.textContent = 'Disabled';
+        // Disable all other toggles
+        enableOtherToggles(false);
+    }
+}
+
+function enableOtherToggles(enabled) {
+    const gameModeContainer = gameModeSwitch.closest('.toggle-container');
+    const outlineModeContainer = outlineModeSwitch.closest('.toggle-container');
+    const certaintyContainer = certaintySwitch.closest('.toggle-container');
+    
+    if (enabled) {
+        gameModeContainer.classList.remove('disabled');
+        gameModeSwitch.classList.remove('disabled');
+        outlineModeContainer.classList.remove('disabled');
+        outlineModeSwitch.classList.remove('disabled');
+        certaintyContainer.classList.remove('disabled');
+        certaintySwitch.classList.remove('disabled');
+    } else {
+        gameModeContainer.classList.add('disabled');
+        gameModeSwitch.classList.add('disabled');
+        outlineModeContainer.classList.add('disabled');
+        outlineModeSwitch.classList.add('disabled');
+        certaintyContainer.classList.add('disabled');
+        certaintySwitch.classList.add('disabled');
     }
 }
 
@@ -56,30 +85,37 @@ const gameModeStatusText = document.getElementById('gameModeStatusText');
 const statsContainer = document.getElementById('statsContainer');
 
 gameModeSwitch.addEventListener('click', () => {
-    chrome.storage.local.get(['gameMode'], (result) => {
-        const currentState = result.gameMode === true;
-        const newState = !currentState;
+    // Check if main toggle is enabled
+    chrome.storage.local.get(['enabled'], (result) => {
+        if (result.enabled === false) {
+            return; // Don't allow if main toggle is off
+        }
         
-        chrome.storage.local.set({ gameMode: newState }, () => {
-            updateGameModeToggle(newState);
+        chrome.storage.local.get(['gameMode'], (result) => {
+            const currentState = result.gameMode === true;
+            const newState = !currentState;
             
-            // Notify content script
-            chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-                if (tabs[0]) {
-                    chrome.tabs.sendMessage(tabs[0].id, {
-                        action: 'toggleGameMode',
-                        enabled: newState
-                    }).catch(() => {
-                        // Tab might not have content script loaded yet
-                    });
-                }
-            });
-            
-            // Reload to apply game mode
-            chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-                if (tabs[0]) {
-                    chrome.tabs.reload(tabs[0].id);
-                }
+            chrome.storage.local.set({ gameMode: newState }, () => {
+                updateGameModeToggle(newState);
+                
+                // Notify content script
+                chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+                    if (tabs[0]) {
+                        chrome.tabs.sendMessage(tabs[0].id, {
+                            action: 'toggleGameMode',
+                            enabled: newState
+                        }).catch(() => {
+                            // Tab might not have content script loaded yet
+                        });
+                    }
+                });
+                
+                // Reload to apply game mode
+                chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+                    if (tabs[0]) {
+                        chrome.tabs.reload(tabs[0].id);
+                    }
+                });
             });
         });
     });
@@ -125,30 +161,37 @@ const outlineModeSwitch = document.getElementById('outlineModeSwitch');
 const outlineModeStatusText = document.getElementById('outlineModeStatusText');
 
 outlineModeSwitch.addEventListener('click', () => {
-    chrome.storage.local.get(['outlineMode'], (result) => {
-        const currentState = result.outlineMode === true;
-        const newState = !currentState;
+    // Check if main toggle is enabled
+    chrome.storage.local.get(['enabled'], (result) => {
+        if (result.enabled === false) {
+            return; // Don't allow if main toggle is off
+        }
         
-        chrome.storage.local.set({ outlineMode: newState }, () => {
-            updateOutlineModeToggle(newState);
+        chrome.storage.local.get(['outlineMode'], (result) => {
+            const currentState = result.outlineMode === true;
+            const newState = !currentState;
             
-            // Notify content script
-            chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-                if (tabs[0]) {
-                    chrome.tabs.sendMessage(tabs[0].id, {
-                        action: 'toggleOutlineMode',
-                        enabled: newState
-                    }).catch(() => {
-                        // Tab might not have content script loaded yet
-                    });
-                }
-            });
-            
-            // Reload current tab to apply changes
-            chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-                if (tabs[0]) {
-                    chrome.tabs.reload(tabs[0].id);
-                }
+            chrome.storage.local.set({ outlineMode: newState }, () => {
+                updateOutlineModeToggle(newState);
+                
+                // Notify content script
+                chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+                    if (tabs[0]) {
+                        chrome.tabs.sendMessage(tabs[0].id, {
+                            action: 'toggleOutlineMode',
+                            enabled: newState
+                        }).catch(() => {
+                            // Tab might not have content script loaded yet
+                        });
+                    }
+                });
+                
+                // Reload current tab to apply changes
+                chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+                    if (tabs[0]) {
+                        chrome.tabs.reload(tabs[0].id);
+                    }
+                });
             });
         });
     });
@@ -169,30 +212,37 @@ const certaintySwitch = document.getElementById('certaintySwitch');
 const certaintyStatusText = document.getElementById('certaintyStatusText');
 
 certaintySwitch.addEventListener('click', () => {
-    chrome.storage.local.get(['showCertainty'], (result) => {
-        const currentState = result.showCertainty === true;
-        const newState = !currentState;
+    // Check if main toggle is enabled
+    chrome.storage.local.get(['enabled'], (result) => {
+        if (result.enabled === false) {
+            return; // Don't allow if main toggle is off
+        }
         
-        chrome.storage.local.set({ showCertainty: newState }, () => {
-            updateCertaintyToggle(newState);
+        chrome.storage.local.get(['showCertainty'], (result) => {
+            const currentState = result.showCertainty === true;
+            const newState = !currentState;
             
-            // Notify content script
-            chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-                if (tabs[0]) {
-                    chrome.tabs.sendMessage(tabs[0].id, {
-                        action: 'toggleCertainty',
-                        enabled: newState
-                    }).catch(() => {
-                        // Tab might not have content script loaded yet
-                    });
-                }
-            });
-            
-            // Reload current tab to apply changes
-            chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-                if (tabs[0]) {
-                    chrome.tabs.reload(tabs[0].id);
-                }
+            chrome.storage.local.set({ showCertainty: newState }, () => {
+                updateCertaintyToggle(newState);
+                
+                // Notify content script
+                chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+                    if (tabs[0]) {
+                        chrome.tabs.sendMessage(tabs[0].id, {
+                            action: 'toggleCertainty',
+                            enabled: newState
+                        }).catch(() => {
+                            // Tab might not have content script loaded yet
+                        });
+                    }
+                });
+                
+                // Reload current tab to apply changes
+                chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+                    if (tabs[0]) {
+                        chrome.tabs.reload(tabs[0].id);
+                    }
+                });
             });
         });
     });

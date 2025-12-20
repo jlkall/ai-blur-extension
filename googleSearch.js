@@ -13,9 +13,17 @@
   function loadEnabledState() {
     if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
       chrome.storage.local.get(['enabled'], (result) => {
+        const wasEnabled = extensionEnabled;
         extensionEnabled = result.enabled !== false; // Default to true
         if (!extensionEnabled) {
           console.log("[CloseAI] Google search modification disabled");
+          // Immediately remove -ai if we're on a search page
+          if (isGoogleSearch()) {
+            removeMinusAI();
+          }
+        } else if (!wasEnabled && isGoogleSearch()) {
+          // If we just enabled, add -ai
+          appendMinusAI();
         }
       });
     }
@@ -23,6 +31,25 @@
 
   // Load state on initialization
   loadEnabledState();
+  
+  // Also check periodically to catch state changes
+  setInterval(() => {
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+      chrome.storage.local.get(['enabled'], (result) => {
+        const newState = result.enabled !== false;
+        if (newState !== extensionEnabled) {
+          extensionEnabled = newState;
+          if (isGoogleSearch()) {
+            if (extensionEnabled) {
+              appendMinusAI();
+            } else {
+              removeMinusAI();
+            }
+          }
+        }
+      });
+    }
+  }, 500);
 
   // Listen for toggle messages from popup
   if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
