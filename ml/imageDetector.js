@@ -269,8 +269,8 @@ async function analyzeImageFeatures(img) {
       const imageData = ctx.getImageData(0, 0, width, height);
       const data = imageData.data;
       
-      // Extract comprehensive features
-      const features = {
+      // Extract base features first
+      const baseFeatures = {
         // Color statistics
         colorVariance: calculateColorVariance(data),
         colorUniformity: calculateColorUniformity(data),
@@ -296,7 +296,7 @@ async function analyzeImageFeatures(img) {
         // Composition heuristics
         compositionScore: calculateCompositionScore(imageData, width, height),
         
-        // New: Check for AI artifacts in pixel patterns
+        // Check for AI artifacts in pixel patterns
         pixelArtifacts: detectPixelArtifacts(imageData, width, height),
         colorBanding: detectColorBanding(imageData, width, height),
         
@@ -304,7 +304,18 @@ async function analyzeImageFeatures(img) {
         hasMetadata: img.complete && img.naturalWidth > 0
       };
       
-      resolve(features);
+      // Use enhanced features if available (drastically improved detection)
+      if (typeof window !== 'undefined' && window.closeaiEnhancedImageDetector && window.closeaiEnhancedImageDetector.extractEnhancedFeatures) {
+        try {
+          const enhancedFeatures = window.closeaiEnhancedImageDetector.extractEnhancedFeatures(imageData, width, height, baseFeatures);
+          resolve(enhancedFeatures);
+        } catch (error) {
+          console.warn("[CloseAI] Enhanced feature extraction failed, using base features:", error);
+          resolve(baseFeatures);
+        }
+      } else {
+        resolve(baseFeatures);
+      }
     } catch (error) {
       // Silently fail - don't spam console with CORS errors
       // These are expected for cross-origin images
@@ -825,6 +836,78 @@ function detectColorBanding(imageData, width, height) {
 }
 
 /**
+ * Base scoring function (fallback)
+ */
+function calculateBaseScore(features, metadata) {
+  const weights = {
+    textureSmoothness: 0.16,
+    gradientSmoothness: 0.14,
+    highFreqContent: 0.13,
+    noiseLevel: 0.11,
+    colorUniformity: 0.09,
+    edgeConsistency: 0.09,
+    textureUniformity: 0.07,
+    urlScore: 0.08,
+    contextScore: 0.06,
+    pixelArtifacts: 0.04,
+    colorBanding: 0.03,
+    unnaturalSymmetry: 0.02,
+    colorSaturation: 0.02,
+    compositionScore: 0.01,
+    sizeScore: 0.01
+  };
+  
+  let score = 
+    weights.textureSmoothness * (features.textureSmoothness || 0) +
+    weights.gradientSmoothness * (features.gradientSmoothness || 0) +
+    weights.highFreqContent * (features.highFreqContent || 0) +
+    weights.noiseLevel * (features.noiseLevel || 0) +
+    weights.colorUniformity * (features.colorUniformity || 0) +
+    weights.edgeConsistency * (features.edgeConsistency || 0) +
+    weights.textureUniformity * (features.textureUniformity || 0) +
+    weights.urlScore * (metadata.urlScore || 0) +
+    weights.contextScore * (metadata.contextScore || 0) +
+    weights.pixelArtifacts * (features.pixelArtifacts || 0) +
+    weights.colorBanding * (features.colorBanding || 0) +
+    weights.unnaturalSymmetry * (features.unnaturalSymmetry || 0) +
+    weights.colorSaturation * (features.colorSaturation || 0) +
+    weights.compositionScore * (features.compositionScore || 0) +
+    weights.sizeScore * (metadata.sizeScore || 0);
+  
+  if (metadata.urlScore > 0.3 || metadata.contextScore > 0.3) {
+    score = score * 1.15;
+  }
+  
+  score = Math.pow(score, 1.2);
+  return Math.max(0, Math.min(1, score));
+}
+
+/**
+ * Base confidence calculation (fallback)
+ */
+function calculateBaseConfidence(features, metadata) {
+  const featureValues = [
+    features.textureSmoothness,
+    features.gradientSmoothness,
+    features.highFreqContent,
+    features.noiseLevel,
+    features.colorUniformity
+  ].filter(v => v !== undefined);
+  
+  if (featureValues.length === 0) return 0.5;
+  
+  const mean = featureValues.reduce((a, b) => a + b, 0) / featureValues.length;
+  const variance = featureValues.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / featureValues.length;
+  
+  let confidence = Math.max(0.5, Math.min(1, 1 - variance * 1.5));
+  if (metadata.urlScore > 0.5 || metadata.contextScore > 0.5) {
+    confidence = Math.min(1, confidence + 0.2);
+  }
+  
+  return confidence;
+}
+
+/**
  * Detect if an image is AI-generated
  * Returns score from 0 (human) to 1 (AI)
  */
@@ -898,76 +981,22 @@ async function detectAIImage(img) {
       return { score: 0, confidence: 0 };
     }
     
-    // Improved weighted ensemble scoring with metadata integration
-    const weights = {
-      // Strong visual indicators
-      textureSmoothness: 0.16,      // AI images are often overly smooth
-      gradientSmoothness: 0.14,    // Very smooth gradients
-      highFreqContent: 0.13,        // Lack of high-frequency detail
-      noiseLevel: 0.11,             // Lack of natural noise
-      
-      // Moderate visual indicators
-      colorUniformity: 0.09,        // Uniform color distribution
-      edgeConsistency: 0.09,        // Consistent edge patterns
-      textureUniformity: 0.07,     // Uniform textures
-      
-      // Metadata indicators (if available)
-      urlScore: 0.08,               // URL patterns
-      contextScore: 0.06,           // Context clues
-      
-      // Artifact detection
-      pixelArtifacts: 0.04,         // Pixel-level artifacts
-      colorBanding: 0.03,           // Color banding
-      
-      // Weaker indicators
-      unnaturalSymmetry: 0.02,      // Perfect symmetry
-      colorSaturation: 0.02,        // Unnatural saturation
-      compositionScore: 0.01,       // Too-perfect composition
-      sizeScore: 0.01               // Size patterns
-    };
-    
-    // Calculate weighted score with metadata
-    let score = 
-      weights.textureSmoothness * features.textureSmoothness +
-      weights.gradientSmoothness * features.gradientSmoothness +
-      weights.highFreqContent * features.highFreqContent +
-      weights.noiseLevel * features.noiseLevel +
-      weights.colorUniformity * features.colorUniformity +
-      weights.edgeConsistency * features.edgeConsistency +
-      weights.textureUniformity * features.textureUniformity +
-      weights.urlScore * metadata.urlScore +
-      weights.contextScore * metadata.contextScore +
-      weights.pixelArtifacts * (features.pixelArtifacts || 0) +
-      weights.colorBanding * (features.colorBanding || 0) +
-      weights.unnaturalSymmetry * features.unnaturalSymmetry +
-      weights.colorSaturation * features.colorSaturation +
-      weights.compositionScore * features.compositionScore +
-      weights.sizeScore * metadata.sizeScore;
-    
-    // Boost score if metadata suggests AI
-    if (metadata.urlScore > 0.3 || metadata.contextScore > 0.3) {
-      score = score * 1.15; // 15% boost
-    }
-    
-    // Apply non-linear scaling to be more selective
-    score = Math.pow(score, 1.2); // Slightly less aggressive than before
-    score = Math.max(0, Math.min(1, score));
-    
-    // Calculate confidence based on feature agreement and metadata
-    const featureValues = [
-      features.textureSmoothness,
-      features.gradientSmoothness,
-      features.highFreqContent,
-      features.noiseLevel,
-      features.colorUniformity
-    ];
-    const mean = featureValues.reduce((a, b) => a + b, 0) / featureValues.length;
-    const variance = featureValues.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / featureValues.length;
-    
-    // Higher confidence if metadata supports visual analysis
-    let confidence = Math.max(0.5, Math.min(1, 1 - variance * 1.5));
-    if (metadata.urlScore > 0.5 || metadata.contextScore > 0.5) {
-      confidence = Math.min(1, confidence + 0.2);
+    // Use enhanced scoring if available (drastically improved)
+    if (typeof window !== 'undefined' && window.closeaiEnhancedImageDetector && window.closeaiEnhancedImageDetector.calculateEnhancedScore) {
+      try {
+        const enhancedResult = window.closeaiEnhancedImageDetector.calculateEnhancedScore(features, metadata);
+        score = enhancedResult.score;
+        confidence = enhancedResult.confidence;
+      } catch (error) {
+        console.warn("[CloseAI] Enhanced scoring failed, using base scoring:", error);
+        // Fall back to base scoring
+        score = calculateBaseScore(features, metadata);
+        confidence = calculateBaseConfidence(features, metadata);
+      }
+    } else {
+      // Base scoring (fallback)
+      score = calculateBaseScore(features, metadata);
+      confidence = calculateBaseConfidence(features, metadata);
     }
     
     const result = { 

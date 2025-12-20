@@ -27,6 +27,7 @@
         "ml/detector.js",
         "ml/enhancedDetector.js",
         "ml/imageDetector.js",
+        "ml/enhancedImageDetector.js",
         "signals.js",
         "scorer.js",
         "googleSearch.js",
