@@ -598,9 +598,92 @@ function outlineImageWithConfidence(img, score, confidence = null) {
 }
 
 /**
+ * Check if an element is inside a map container (Google Maps, Apple Maps, etc.)
+ * This prevents scanning any content (text or images) within map containers
+ */
+function isInMapContainer(element) {
+  if (!element) return false;
+  
+  let currentElement = element;
+  const maxDepth = 15; // Check up to 15 levels up
+  
+  for (let i = 0; i < maxDepth && currentElement; i++) {
+    const className = (currentElement.className || '').toLowerCase();
+    const id = (currentElement.id || '').toLowerCase();
+    const tagName = (currentElement.tagName || '').toLowerCase();
+    const role = (currentElement.getAttribute?.('role') || '').toLowerCase();
+    
+    // Check for map-related class names (comprehensive list)
+    const mapClassPatterns = [
+      'map', 'maps', 'map-container', 'map-canvas', 'map-view', 'map-wrapper',
+      'google-map', 'google-maps', 'apple-map', 'apple-maps',
+      'leaflet', 'mapbox', 'map-tile', 'map-tiles', 'mapboxgl',
+      'gm-style', 'gm-map', 'gmnoprint', 'gmnoscreen',
+      'mapbox-map', 'mapboxgl-map', 'mapboxgl-canvas',
+      'ol-viewport', 'ol-map', // OpenLayers
+      'esri-view', 'esri-map', // ArcGIS
+      'map-viewport', 'map-controls', 'map-overlay'
+    ];
+    
+    for (const pattern of mapClassPatterns) {
+      if (className.includes(pattern)) {
+        return true;
+      }
+    }
+    
+    // Check for map-related IDs
+    const mapIdPatterns = [
+      'map', 'maps', 'google-map', 'google-maps', 'apple-map', 'apple-maps',
+      'map-container', 'map-canvas', 'map-view', 'map-wrapper',
+      'mapbox', 'leaflet-map', 'mapboxgl-map'
+    ];
+    
+    for (const pattern of mapIdPatterns) {
+      if (id.includes(pattern)) {
+        return true;
+      }
+    }
+    
+    // Check for map-related roles
+    if (role === 'application' && (className.includes('map') || id.includes('map'))) {
+      return true;
+    }
+    
+    // Check if inside an iframe that contains maps
+    if (tagName === 'iframe') {
+      const iframeSrc = (currentElement.src || '').toLowerCase();
+      if (iframeSrc.includes('maps.googleapis.com') || 
+          iframeSrc.includes('maps.google.com') ||
+          iframeSrc.includes('maps.apple.com') ||
+          iframeSrc.includes('map') && (iframeSrc.includes('google') || iframeSrc.includes('apple'))) {
+        return true;
+      }
+    }
+    
+    // Check for Google Maps specific attributes
+    if (currentElement.hasAttribute && (
+        currentElement.hasAttribute('data-map') ||
+        currentElement.hasAttribute('data-google-map') ||
+        currentElement.getAttribute('data-type') === 'map'
+      )) {
+      return true;
+    }
+    
+    currentElement = currentElement.parentElement;
+  }
+  
+  return false;
+}
+
+/**
  * Check if an image is from a map service (Google Maps, Apple Maps, etc.)
  */
 function isMapImage(img) {
+  // First check if image is in a map container
+  if (isInMapContainer(img)) {
+    return true;
+  }
+  
   // Check image source URL for map-related patterns
   const src = (img.src || img.currentSrc || '').toLowerCase();
   const mapPatterns = [
@@ -637,46 +720,6 @@ function isMapImage(img) {
     }
   }
   
-  // Check parent elements for map-related classes/IDs
-  let element = img;
-  for (let i = 0; i < 10 && element; i++) {
-    const className = (element.className || '').toLowerCase();
-    const id = (element.id || '').toLowerCase();
-    const tagName = (element.tagName || '').toLowerCase();
-    
-    // Check for map-related class names
-    if (className.includes('map') || className.includes('maps') || 
-        className.includes('map-container') || className.includes('map-canvas') ||
-        className.includes('map-view') || className.includes('map-wrapper') ||
-        className.includes('google-map') || className.includes('leaflet') ||
-        className.includes('mapbox') || className.includes('map-tile')) {
-      return true;
-    }
-    
-    // Check for map-related IDs
-    if (id.includes('map') || id.includes('maps') || id.includes('google-map') ||
-        id.includes('map-container') || id.includes('map-canvas')) {
-      return true;
-    }
-    
-    // Check if inside an iframe (maps are often in iframes)
-    if (tagName === 'iframe') {
-      const iframeSrc = (element.src || '').toLowerCase();
-      if (iframeSrc.includes('maps') || iframeSrc.includes('map')) {
-        return true;
-      }
-    }
-    
-    element = element.parentElement;
-  }
-  
-  // Check if image is in a map context by looking at surrounding text
-  const parentText = (img.parentElement?.textContent || '').toLowerCase();
-  if (parentText.includes('map') && (parentText.includes('location') || 
-      parentText.includes('directions') || parentText.includes('address'))) {
-    return true;
-  }
-  
   return false;
 }
 
@@ -690,6 +733,12 @@ async function scanImages(root) {
   
   // Filter and prioritize images
   const candidateImages = images.filter(img => {
+    // Skip if image is inside a map container (Google Maps, Apple Maps, etc.)
+    if (isInMapContainer(img)) {
+      img.dataset.aiScanned = "true";
+      return false;
+    }
+    
     // Skip map images (Google Maps, Apple Maps, etc.)
     if (isMapImage(img)) {
       img.dataset.aiScanned = "true";
@@ -857,6 +906,12 @@ async function scan(root) {
   for (const el of elements) {
     if (el.dataset.aiBlur === "true" || el.dataset.aiOutline === "true") continue;
     if (el.dataset.aiScanned === "true") continue;
+    
+    // Skip if element is inside a map container
+    if (isInMapContainer(el)) {
+      el.dataset.aiScanned = "true";
+      continue;
+    }
 
     const text = el.innerText;
     if (!text || text.trim().length < 40) continue;
