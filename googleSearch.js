@@ -6,6 +6,36 @@
 (function() {
   'use strict';
 
+  // Extension enabled state (default to true)
+  let extensionEnabled = true;
+
+  // Load enabled state from storage
+  function loadEnabledState() {
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+      chrome.storage.local.get(['enabled'], (result) => {
+        extensionEnabled = result.enabled !== false; // Default to true
+        if (!extensionEnabled) {
+          console.log("[CloseAI] Google search modification disabled");
+        }
+      });
+    }
+  }
+
+  // Load state on initialization
+  loadEnabledState();
+
+  // Listen for toggle messages from popup
+  if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
+    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+      if (message.action === 'toggle') {
+        extensionEnabled = message.enabled;
+        console.log("[CloseAI] Google search modification toggled:", extensionEnabled ? "enabled" : "disabled");
+        sendResponse({ success: true });
+      }
+      return true;
+    });
+  }
+
   // Check if we're on Google search
   function isGoogleSearch() {
     return window.location.hostname.includes('google.com') && 
@@ -18,9 +48,44 @@
     return params.get('q') || params.get('query') || '';
   }
 
+  // Remove -ai from query if extension is disabled
+  function removeMinusAI() {
+    if (!isGoogleSearch()) return;
+
+    const params = new URLSearchParams(window.location.search);
+    let query = params.get('q');
+    
+    if (!query) return;
+    
+    // Check if -ai is appended and remove it
+    const queryLower = query.toLowerCase().trim();
+    if (queryLower.endsWith(' -ai')) {
+      const newQuery = query.trim().slice(0, -4); // Remove ' -ai'
+      params.set('q', newQuery);
+      
+      const newUrl = window.location.pathname + '?' + params.toString() + (window.location.hash || '');
+      if (window.location.href !== newUrl) {
+        window.location.href = newUrl;
+      }
+    } else if (queryLower.endsWith('-ai')) {
+      const newQuery = query.trim().slice(0, -3); // Remove '-ai'
+      params.set('q', newQuery);
+      
+      const newUrl = window.location.pathname + '?' + params.toString() + (window.location.hash || '');
+      if (window.location.href !== newUrl) {
+        window.location.href = newUrl;
+      }
+    }
+  }
+
   // Modify URL to append -ai
   function appendMinusAI() {
     if (!isGoogleSearch()) return;
+    if (!extensionEnabled) {
+      // If disabled, remove -ai if present
+      removeMinusAI();
+      return;
+    }
 
     const params = new URLSearchParams(window.location.search);
     let query = params.get('q');
@@ -57,6 +122,24 @@
     if (!searchForm) return;
 
     searchForm.addEventListener('submit', function(e) {
+      if (!extensionEnabled) {
+        // If disabled, remove -ai from input if present
+        const searchInput = searchForm.querySelector('input[name="q"]') ||
+                            searchForm.querySelector('input[type="text"]') ||
+                            searchForm.querySelector('textarea[name="q"]');
+        
+        if (searchInput) {
+          let query = searchInput.value.trim();
+          const queryLower = query.toLowerCase();
+          if (queryLower.endsWith(' -ai')) {
+            searchInput.value = query.slice(0, -4);
+          } else if (queryLower.endsWith('-ai')) {
+            searchInput.value = query.slice(0, -3);
+          }
+        }
+        return; // Don't modify if disabled
+      }
+
       const searchInput = searchForm.querySelector('input[name="q"]') ||
                           searchForm.querySelector('input[type="text"]') ||
                           searchForm.querySelector('textarea[name="q"]');
@@ -83,7 +166,11 @@
       // Small delay to let page settle
       setTimeout(() => {
         if (isGoogleSearch()) {
-          appendMinusAI();
+          if (extensionEnabled) {
+            appendMinusAI();
+          } else {
+            removeMinusAI();
+          }
         }
       }, 100);
     }
@@ -96,7 +183,11 @@
   window.addEventListener('popstate', function() {
     setTimeout(() => {
       if (isGoogleSearch()) {
-        appendMinusAI();
+        if (extensionEnabled) {
+          appendMinusAI();
+        } else {
+          removeMinusAI();
+        }
       }
     }, 100);
   });
@@ -104,7 +195,11 @@
   // Initial setup
   function init() {
     if (isGoogleSearch()) {
-      appendMinusAI();
+      if (extensionEnabled) {
+        appendMinusAI();
+      } else {
+        removeMinusAI();
+      }
       interceptSearchForm();
       
       // Start observing
