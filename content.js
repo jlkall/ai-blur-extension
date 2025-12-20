@@ -636,33 +636,50 @@ async function scanImages(root) {
     if (!img.complete) {
       img.addEventListener("load", async function() {
         img.dataset.aiScanned = "true";
+        
+        // Check per-site settings for images
+        const currentDomain = window.location.hostname.replace(/^www\./, '');
+        if (typeof window.closeaiHistory !== 'undefined' && window.closeaiHistory.isWhitelisted) {
+          window.closeaiHistory.isWhitelisted(currentDomain, (whitelisted) => {
+            if (whitelisted) return;
+          });
+        }
+        
         if (typeof detectAIImage !== 'undefined') {
           try {
             const result = await detectAIImage(img);
-            const minConfidence = result?.metadataBased ? 0.4 : 0.5;
-            if (result && result.score >= IMAGE_THRESHOLD && result.confidence >= minConfidence) {
-              blurImageWithConfidence(img, result.score, result.confidence);
-            }
-          } catch (error) {
-            // Silently fail
-          }
-        }
-      }, { once: true });
-      continue;
-    }
-    
-    img.dataset.aiScanned = "true";
-    
-    // Detect AI image
-    if (typeof detectAIImage !== 'undefined') {
-      try {
-        const result = await detectAIImage(img);
-        // If metadata-based detection, use lower confidence requirement
-        // Otherwise require both high score AND good confidence
         const minConfidence = result?.metadataBased ? 0.4 : 0.5;
         if (result && result.score >= IMAGE_THRESHOLD && result.confidence >= minConfidence) {
           blurImageWithConfidence(img, result.score, result.confidence);
+          // Log detection to history
+          if (typeof window.closeaiHistory !== 'undefined' && window.closeaiHistory.logDetection) {
+            window.closeaiHistory.logDetection('image', result.score, result.confidence, window.location.href, img.src, true);
+          }
         }
+      } catch (error) {
+        // Silently fail
+      }
+    }
+  }, { once: true });
+  continue;
+}
+
+img.dataset.aiScanned = "true";
+
+// Detect AI image
+if (typeof detectAIImage !== 'undefined') {
+  try {
+    const result = await detectAIImage(img);
+    // If metadata-based detection, use lower confidence requirement
+    // Otherwise require both high score AND good confidence
+    const minConfidence = result?.metadataBased ? 0.4 : 0.5;
+    if (result && result.score >= IMAGE_THRESHOLD && result.confidence >= minConfidence) {
+      blurImageWithConfidence(img, result.score, result.confidence);
+      // Log detection to history
+      if (typeof window.closeaiHistory !== 'undefined' && window.closeaiHistory.logDetection) {
+        window.closeaiHistory.logDetection('image', result.score, result.confidence, window.location.href, img.src, true);
+      }
+    }
       } catch (error) {
         // Silently fail
       }
@@ -741,6 +758,19 @@ function removeAllOutlines() {
 async function scan(root) {
   if (!extensionEnabled) return;
   
+  // Check per-site settings (async check, but continue scanning)
+  const currentDomain = window.location.hostname.replace(/^www\./, '');
+  let shouldSkip = false;
+  if (typeof window.closeaiHistory !== 'undefined' && window.closeaiHistory.isWhitelisted) {
+    window.closeaiHistory.isWhitelisted(currentDomain, (whitelisted) => {
+      if (whitelisted) {
+        console.log("[CloseAI] Domain whitelisted, skipping detection:", currentDomain);
+        shouldSkip = true;
+      }
+    });
+  }
+  if (shouldSkip) return;
+  
   const elements = root.querySelectorAll("p, li, div[class*='content'], div[class*='text'], article");
 
   for (const el of elements) {
@@ -759,6 +789,11 @@ async function scan(root) {
     if (quickScore >= THRESHOLD) {
       blurWithCTA(el, quickScore, null); // No confidence for sync score
       
+      // Log quick detection (will be refined later)
+      if (typeof window.closeaiHistory !== 'undefined' && window.closeaiHistory.logDetection) {
+        window.closeaiHistory.logDetection('text', quickScore, null, window.location.href, text, false);
+      }
+      
       // Then refine with async ML scoring
       scoreTextAsync(text).then(result => {
         if (result && typeof result === 'object' && result.score !== undefined) {
@@ -769,12 +804,20 @@ async function scan(root) {
           if (Math.abs(refinedScore - quickScore) > 0.15) {
             if (refinedScore >= THRESHOLD && el.dataset.aiBlur !== "true") {
               blurWithCTA(el, refinedScore, confidence);
+              // Log detection to history
+              if (typeof window.closeaiHistory !== 'undefined' && window.closeaiHistory.logDetection) {
+                window.closeaiHistory.logDetection('text', refinedScore, confidence, window.location.href, text, false);
+              }
             } else if (refinedScore < THRESHOLD && el.dataset.aiBlur === "true") {
               // Remove blur if ML says it's not AI
               el.dataset.aiBlur = "false";
               el.innerHTML = text;
             }
           } else if (confidence !== null) {
+            // Log detection to history (even if score didn't change much)
+            if (refinedScore >= THRESHOLD && typeof window.closeaiHistory !== 'undefined' && window.closeaiHistory.logDetection) {
+              window.closeaiHistory.logDetection('text', refinedScore, confidence, window.location.href, text, false);
+            }
             // Update confidence badge if score is similar
             blurWithCTA(el, refinedScore, confidence);
           }

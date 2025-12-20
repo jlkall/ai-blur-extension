@@ -29,6 +29,8 @@
         "scorer.js",
         "googleSearch.js",
         "gameMode.js",
+        "detectionHistory.js",
+        "export.js",
         "content.js"
       ],
       "run_at": "document_idle"

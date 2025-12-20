@@ -196,6 +196,90 @@
         .stat-value {
             font-weight: 600;
         }
+
+        .section-divider {
+            margin: 20px 0;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .section-title {
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            opacity: 0.7;
+            margin-bottom: 12px;
+        }
+
+        .action-button {
+            display: block;
+            width: 100%;
+            padding: 10px 16px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-bottom: 8px;
+            text-align: center;
+        }
+
+        .action-button:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .action-button.secondary {
+            background: rgba(255, 255, 255, 0.05);
+            font-size: 12px;
+            padding: 8px 12px;
+        }
+
+        .history-stats {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 12px;
+            font-size: 12px;
+        }
+
+        .history-stat-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 6px;
+        }
+
+        .history-stat-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .site-controls {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 12px;
+        }
+
+        .current-site {
+            font-size: 12px;
+            opacity: 0.8;
+            margin-bottom: 10px;
+            word-break: break-all;
+        }
+
+        .site-control-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .site-control-buttons .action-button {
+            flex: 1;
+            margin: 0;
+            padding: 8px 12px;
+            font-size: 11px;
+        }
     </style>
 </head>
 <body>
@@ -272,6 +356,46 @@
                 <span class="stat-value" id="statAccuracy">0%</span>
             </div>
         </div>
+
+        <div class="section-divider"></div>
+
+        <div class="section-title">📍 Current Site</div>
+        <div class="site-controls" id="siteControls">
+            <div class="current-site" id="currentSite">Loading...</div>
+            <div class="site-control-buttons">
+                <button class="action-button secondary" id="whitelistBtn">Whitelist</button>
+                <button class="action-button secondary" id="blacklistBtn">Blacklist</button>
+                <button class="action-button secondary" id="removeSiteBtn">Remove</button>
+            </div>
+        </div>
+
+        <div class="section-divider"></div>
+
+        <div class="section-title">📊 Detection History</div>
+        <div class="history-stats" id="historyStats">
+            <div class="history-stat-row">
+                <span>Total Detections:</span>
+                <span id="historyTotal">0</span>
+            </div>
+            <div class="history-stat-row">
+                <span>Text:</span>
+                <span id="historyText">0</span>
+            </div>
+            <div class="history-stat-row">
+                <span>Images:</span>
+                <span id="historyImages">0</span>
+            </div>
+            <div class="history-stat-row">
+                <span>Avg Certainty:</span>
+                <span id="historyAvg">0%</span>
+            </div>
+        </div>
+
+        <button class="action-button" id="exportCSVBtn">📥 Export as CSV</button>
+        <button class="action-button secondary" id="exportJSONBtn">📥 Export as JSON</button>
+        <button class="action-button secondary" id="clearHistoryBtn">🗑️ Clear History</button>
+
+        <div class="section-divider"></div>
 
         <a href="https://jlkall.github.io/ai-blur-extension/" target="_blank" class="link-button">
             <span class="icon">🌐</span>
