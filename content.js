@@ -29,7 +29,17 @@ loadEnabledState();
 // Listen for toggle messages from popup
 if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (message.action === 'toggle') {
+    if (message.action === 'getHistory') {
+      // Return detection history
+      if (typeof window.closeaiHistory !== 'undefined' && window.closeaiHistory.getHistory) {
+        window.closeaiHistory.getHistory((history) => {
+          sendResponse({ history: history });
+        });
+        return true; // Keep channel open for async response
+      } else {
+        sendResponse({ history: [] });
+      }
+    } else if (message.action === 'toggle') {
       extensionEnabled = message.enabled;
       console.log("[CloseAI] Extension toggled:", extensionEnabled ? "enabled" : "disabled");
       
