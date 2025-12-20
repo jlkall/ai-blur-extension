@@ -637,14 +637,6 @@ async function scanImages(root) {
       img.addEventListener("load", async function() {
         img.dataset.aiScanned = "true";
         
-        // Check per-site settings for images
-        const currentDomain = window.location.hostname.replace(/^www\./, '');
-        if (typeof window.closeaiHistory !== 'undefined' && window.closeaiHistory.isWhitelisted) {
-          window.closeaiHistory.isWhitelisted(currentDomain, (whitelisted) => {
-            if (whitelisted) return;
-          });
-        }
-        
         if (typeof detectAIImage !== 'undefined') {
           try {
             const result = await detectAIImage(img);
@@ -758,18 +750,8 @@ function removeAllOutlines() {
 async function scan(root) {
   if (!extensionEnabled) return;
   
-  // Check per-site settings (async check, but continue scanning)
+  // Check per-site settings - whitelist check happens in scanImages too
   const currentDomain = window.location.hostname.replace(/^www\./, '');
-  let shouldSkip = false;
-  if (typeof window.closeaiHistory !== 'undefined' && window.closeaiHistory.isWhitelisted) {
-    window.closeaiHistory.isWhitelisted(currentDomain, (whitelisted) => {
-      if (whitelisted) {
-        console.log("[CloseAI] Domain whitelisted, skipping detection:", currentDomain);
-        shouldSkip = true;
-      }
-    });
-  }
-  if (shouldSkip) return;
   
   const elements = root.querySelectorAll("p, li, div[class*='content'], div[class*='text'], article");
 
