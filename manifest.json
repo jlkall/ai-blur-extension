@@ -25,6 +25,7 @@
         "ml/onnxLoader.js",
         "ml/ort.min.js",
         "ml/detector.js",
+        "ml/enhancedDetector.js",
         "ml/imageDetector.js",
         "signals.js",
         "scorer.js",

@@ -11,17 +11,50 @@ if (typeof clamp === 'undefined') {
 }
 
 /**
- * Enhanced scoring using ML detector
+ * Enhanced scoring using ML detector with GPTZero-level features
  * Falls back to statistical features if ML model unavailable
  */
 async function scoreParagraph(text) {
-  // Try to use ML detector first
+  // Try enhanced detector first (GPTZero-level features)
+  if (typeof window !== 'undefined' && window.closeaiEnhancedDetector && window.closeaiEnhancedDetector.detectAIGeneratedEnhanced) {
+    try {
+      // Get base features from standard detector
+      let baseFeatures = {};
+      if (typeof detectAIGenerated !== 'undefined') {
+        try {
+          const baseResult = await detectAIGenerated(text);
+          if (baseResult && baseResult.features) {
+            baseFeatures = baseResult.features;
+          }
+        } catch (e) {
+          // Continue without base features
+        }
+      }
+      
+      // Use enhanced detector with base features
+      const enhancedResult = await window.closeaiEnhancedDetector.detectAIGeneratedEnhanced(text, baseFeatures);
+      if (enhancedResult && enhancedResult.score !== undefined) {
+        // Enhanced score with confidence weighting
+        return {
+          score: enhancedResult.score,
+          confidence: enhancedResult.confidence || 0.7
+        };
+      }
+    } catch (error) {
+      console.warn("[CloseAI] Enhanced detection failed, trying standard ML:", error);
+    }
+  }
+
+  // Try standard ML detector
   if (typeof detectAIGenerated !== 'undefined') {
     try {
       const result = await detectAIGenerated(text);
       if (result && result.score !== undefined) {
         // Combine ML score with confidence weighting
-        return result.score * (0.7 + 0.3 * result.confidence);
+        return {
+          score: result.score * (0.7 + 0.3 * (result.confidence || 0.5)),
+          confidence: result.confidence || 0.5
+        };
       }
     } catch (error) {
       console.warn("[CloseAI] ML detection failed, using fallback:", error);
@@ -37,7 +70,11 @@ async function scoreParagraph(text) {
     { weight: 0.15, value: hedgingScore(text) }
   ];
 
-  return scores.reduce((sum, s) => sum + s.weight * s.value, 0);
+  const fallbackScore = scores.reduce((sum, s) => sum + s.weight * s.value, 0);
+  return {
+    score: fallbackScore,
+    confidence: 0.5 // Lower confidence for statistical-only
+  };
 }
 
 /**
