@@ -703,24 +703,76 @@ function isInMapContainer(element) {
     currentElement = currentElement.parentElement;
   }
   
-  // Also check if we're on a Google search results page with embedded map
+  // Aggressive check for Google Maps on Google search results
   if (window.location.hostname.includes('google.com') && window.location.pathname === '/search') {
     // Check if element is in the right column (where Google embeds maps)
     const rect = element.getBoundingClientRect();
     const windowWidth = window.innerWidth;
-    // If element is in the right 40% of the screen on Google search, likely a map
-    if (rect.left > windowWidth * 0.6 && rect.width > 200) {
-      // Additional check: look for map indicators nearby
-      const nearbyElements = document.elementsFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
-      for (const nearby of nearbyElements) {
-        if (nearby !== element) {
-          const nearbyClass = (nearby.className || '').toLowerCase();
-          const nearbyId = (nearby.id || '').toLowerCase();
-          if (nearbyClass.includes('gm-') || nearbyClass.includes('map') || 
-              nearbyId.includes('map') || nearby.tagName === 'IFRAME') {
+    
+    // If element is in the right 35% of the screen on Google search, check more carefully
+    if (rect.left > windowWidth * 0.65) {
+      // Look for Google Maps indicators in the DOM tree
+      let checkElement = element;
+      for (let j = 0; j < 10 && checkElement; j++) {
+        // Check for Google Maps iframe
+        const iframes = checkElement.querySelectorAll?.('iframe') || [];
+        for (const iframe of iframes) {
+          const iframeSrc = (iframe.src || '').toLowerCase();
+          if (iframeSrc.includes('maps.googleapis.com') || 
+              iframeSrc.includes('maps.google.com') ||
+              iframeSrc.includes('/maps/')) {
             return true;
           }
         }
+        
+        // Check for any element with gm- classes (Google Maps)
+        const gmElements = checkElement.querySelectorAll?.('[class*="gm-"]') || [];
+        if (gmElements.length > 0) {
+          return true;
+        }
+        
+        // Check parent for map indicators
+        const parentClass = (checkElement.className || '').toLowerCase();
+        const parentId = (checkElement.id || '').toLowerCase();
+        if (parentClass.includes('gm-') || parentId.includes('map')) {
+          return true;
+        }
+        
+        checkElement = checkElement.parentElement;
+      }
+      
+      // Also check nearby elements for map indicators
+      try {
+        const nearbyElements = document.elementsFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+        for (const nearby of nearbyElements) {
+          if (nearby !== element) {
+            const nearbyClass = (nearby.className || '').toLowerCase();
+            const nearbyId = (nearby.id || '').toLowerCase();
+            const nearbyTag = (nearby.tagName || '').toLowerCase();
+            
+            if (nearbyClass.includes('gm-') || 
+                nearbyClass.includes('map') || 
+                nearbyId.includes('map') || 
+                nearbyTag === 'iframe' ||
+                (nearbyTag === 'div' && nearbyClass.includes('local'))) {
+              // Check if this nearby element is actually a map
+              const nearbyIframes = nearby.querySelectorAll?.('iframe') || [];
+              for (const iframe of nearbyIframes) {
+                const iframeSrc = (iframe.src || '').toLowerCase();
+                if (iframeSrc.includes('maps') || iframeSrc.includes('googleapis')) {
+                  return true;
+                }
+              }
+              
+              // If it has gm- classes, it's definitely a map
+              if (nearbyClass.includes('gm-')) {
+                return true;
+              }
+            }
+          }
+        }
+      } catch (e) {
+        // elementsFromPoint might fail in some cases, ignore
       }
     }
   }
