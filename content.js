@@ -598,6 +598,89 @@ function outlineImageWithConfidence(img, score, confidence = null) {
 }
 
 /**
+ * Check if an image is from a map service (Google Maps, Apple Maps, etc.)
+ */
+function isMapImage(img) {
+  // Check image source URL for map-related patterns
+  const src = (img.src || img.currentSrc || '').toLowerCase();
+  const mapPatterns = [
+    'maps.googleapis.com',
+    'maps.gstatic.com',
+    'googleapis.com/maps',
+    'mapbox.com',
+    'openstreetmap.org',
+    'leaflet',
+    'map-tile',
+    'map-tiles',
+    'tile.openstreetmap',
+    'cartodb-basemaps',
+    'stamen-tiles',
+    'arcgis.com',
+    'bing.com/maps',
+    'apple.com/maps',
+    'mapquest',
+    'here.com',
+    'tomtom',
+    'mapdata',
+    '/maps/api/',
+    '/maps/vt/',
+    '/maps/api/staticmap',
+    'streetview',
+    'satellite',
+    'terrain',
+    'roadmap'
+  ];
+  
+  for (const pattern of mapPatterns) {
+    if (src.includes(pattern)) {
+      return true;
+    }
+  }
+  
+  // Check parent elements for map-related classes/IDs
+  let element = img;
+  for (let i = 0; i < 10 && element; i++) {
+    const className = (element.className || '').toLowerCase();
+    const id = (element.id || '').toLowerCase();
+    const tagName = (element.tagName || '').toLowerCase();
+    
+    // Check for map-related class names
+    if (className.includes('map') || className.includes('maps') || 
+        className.includes('map-container') || className.includes('map-canvas') ||
+        className.includes('map-view') || className.includes('map-wrapper') ||
+        className.includes('google-map') || className.includes('leaflet') ||
+        className.includes('mapbox') || className.includes('map-tile')) {
+      return true;
+    }
+    
+    // Check for map-related IDs
+    if (id.includes('map') || id.includes('maps') || id.includes('google-map') ||
+        id.includes('map-container') || id.includes('map-canvas')) {
+      return true;
+    }
+    
+    // Check if inside an iframe (maps are often in iframes)
+    if (tagName === 'iframe') {
+      const iframeSrc = (element.src || '').toLowerCase();
+      if (iframeSrc.includes('maps') || iframeSrc.includes('map')) {
+        return true;
+      }
+    }
+    
+    element = element.parentElement;
+  }
+  
+  // Check if image is in a map context by looking at surrounding text
+  const parentText = (img.parentElement?.textContent || '').toLowerCase();
+  if (parentText.includes('map') && (parentText.includes('location') || 
+      parentText.includes('directions') || parentText.includes('address'))) {
+    return true;
+  }
+  
+  return false;
+}
+
+/**
  * Scan and process images selectively
  */
 async function scanImages(root) {
@@ -607,6 +690,12 @@ async function scanImages(root) {
   
   // Filter and prioritize images
   const candidateImages = images.filter(img => {
+    // Skip map images (Google Maps, Apple Maps, etc.)
+    if (isMapImage(img)) {
+      img.dataset.aiScanned = "true";
+      return false;
+    }
+    
     // Skip very small images (icons, avatars, thumbnails)
     if (img.width < 100 || img.height < 100) {
       img.dataset.aiScanned = "true";
