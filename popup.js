@@ -1,3 +1,14 @@
+// Get all DOM elements first
+const toggleSwitch = document.getElementById('toggleSwitch');
+const statusText = document.getElementById('statusText');
+const gameModeSwitch = document.getElementById('gameModeSwitch');
+const gameModeStatusText = document.getElementById('gameModeStatusText');
+const statsContainer = document.getElementById('statsContainer');
+const outlineModeSwitch = document.getElementById('outlineModeSwitch');
+const outlineModeStatusText = document.getElementById('outlineModeStatusText');
+const certaintySwitch = document.getElementById('certaintySwitch');
+const certaintyStatusText = document.getElementById('certaintyStatusText');
+
 // Load current state
 chrome.storage.local.get(['enabled', 'gameMode', 'outlineMode', 'showCertainty', 'feedbackData'], (result) => {
     const enabled = result.enabled !== false; // Default to true
@@ -21,11 +32,8 @@ chrome.storage.local.get(['enabled', 'gameMode', 'outlineMode', 'showCertainty',
     }
 });
 
-// Toggle switch
-const toggleSwitch = document.getElementById('toggleSwitch');
-const statusText = document.getElementById('statusText');
-
-toggleSwitch.addEventListener('click', () => {
+if (toggleSwitch) {
+    toggleSwitch.addEventListener('click', () => {
     chrome.storage.local.get(['enabled'], (result) => {
         const currentState = result.enabled !== false; // Default to true
         const newState = !currentState;
@@ -41,9 +49,12 @@ toggleSwitch.addEventListener('click', () => {
             });
         });
     });
-});
+    });
+}
 
 function updateToggle(enabled) {
+    if (!toggleSwitch || !statusText) return;
+    
     if (enabled) {
         toggleSwitch.classList.add('active');
         statusText.textContent = 'Enabled';
@@ -58,9 +69,13 @@ function updateToggle(enabled) {
 }
 
 function enableOtherToggles(enabled) {
+    if (!gameModeSwitch || !outlineModeSwitch || !certaintySwitch) return;
+    
     const gameModeContainer = gameModeSwitch.closest('.toggle-container');
     const outlineModeContainer = outlineModeSwitch.closest('.toggle-container');
     const certaintyContainer = certaintySwitch.closest('.toggle-container');
+    
+    if (!gameModeContainer || !outlineModeContainer || !certaintyContainer) return;
     
     if (enabled) {
         gameModeContainer.classList.remove('disabled');
@@ -80,11 +95,8 @@ function enableOtherToggles(enabled) {
 }
 
 // Game mode toggle
-const gameModeSwitch = document.getElementById('gameModeSwitch');
-const gameModeStatusText = document.getElementById('gameModeStatusText');
-const statsContainer = document.getElementById('statsContainer');
-
-gameModeSwitch.addEventListener('click', () => {
+if (gameModeSwitch) {
+    gameModeSwitch.addEventListener('click', () => {
     // Check if main toggle is enabled
     chrome.storage.local.get(['enabled'], (result) => {
         if (result.enabled === false) {
@@ -119,9 +131,11 @@ gameModeSwitch.addEventListener('click', () => {
             });
         });
     });
-});
+    });
+}
 
 function updateGameModeToggle(enabled) {
+    if (!gameModeSwitch || !gameModeStatusText || !statsContainer) return;
     if (enabled) {
         gameModeSwitch.classList.add('active');
         gameModeStatusText.textContent = 'Enabled';
@@ -143,24 +157,28 @@ function loadStats() {
 }
 
 function updateStats(data) {
-    document.getElementById('statTotal').textContent = data.total || 0;
+    const statTotal = document.getElementById('statTotal');
+    const statAgree = document.getElementById('statAgree');
+    const statAccuracy = document.getElementById('statAccuracy');
+    
+    if (!statTotal || !statAgree || !statAccuracy) return;
+    
+    statTotal.textContent = data.total || 0;
     
     const agreePercent = data.total > 0 
         ? Math.round((data.userAgrees / data.total) * 100) 
         : 0;
-    document.getElementById('statAgree').textContent = agreePercent + '%';
+    statAgree.textContent = agreePercent + '%';
     
     const accuracy = data.total > 0
         ? Math.round((data.modelCorrect / data.total) * 100)
         : 0;
-    document.getElementById('statAccuracy').textContent = accuracy + '%';
+    statAccuracy.textContent = accuracy + '%';
 }
 
 // Outline mode toggle
-const outlineModeSwitch = document.getElementById('outlineModeSwitch');
-const outlineModeStatusText = document.getElementById('outlineModeStatusText');
-
-outlineModeSwitch.addEventListener('click', () => {
+if (outlineModeSwitch) {
+    outlineModeSwitch.addEventListener('click', () => {
     // Check if main toggle is enabled
     chrome.storage.local.get(['enabled'], (result) => {
         if (result.enabled === false) {
@@ -195,9 +213,11 @@ outlineModeSwitch.addEventListener('click', () => {
             });
         });
     });
-});
+    });
+}
 
 function updateOutlineModeToggle(enabled) {
+    if (!outlineModeSwitch || !outlineModeStatusText) return;
     if (enabled) {
         outlineModeSwitch.classList.add('active');
         outlineModeStatusText.textContent = 'Enabled';
@@ -208,10 +228,8 @@ function updateOutlineModeToggle(enabled) {
 }
 
 // Show AI Certainty toggle
-const certaintySwitch = document.getElementById('certaintySwitch');
-const certaintyStatusText = document.getElementById('certaintyStatusText');
-
-certaintySwitch.addEventListener('click', () => {
+if (certaintySwitch) {
+    certaintySwitch.addEventListener('click', () => {
     // Check if main toggle is enabled
     chrome.storage.local.get(['enabled'], (result) => {
         if (result.enabled === false) {
@@ -246,9 +264,11 @@ certaintySwitch.addEventListener('click', () => {
             });
         });
     });
-});
+    });
+}
 
 function updateCertaintyToggle(enabled) {
+    if (!certaintySwitch || !certaintyStatusText) return;
     if (enabled) {
         certaintySwitch.classList.add('active');
         certaintyStatusText.textContent = 'Enabled';
@@ -260,7 +280,7 @@ function updateCertaintyToggle(enabled) {
 
 // Refresh stats periodically when game mode is active
 setInterval(() => {
-    if (gameModeSwitch.classList.contains('active')) {
+    if (gameModeSwitch && gameModeSwitch.classList.contains('active')) {
         loadStats();
     }
 }, 2000);
