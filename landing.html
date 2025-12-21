@@ -157,6 +157,48 @@
             font-size: 1.2rem;
         }
 
+        .demo-section {
+            margin-top: 3rem;
+            text-align: center;
+        }
+
+        .demo-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            opacity: 0.95;
+        }
+
+        .demo-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 2rem;
+            margin-top: 1.5rem;
+        }
+
+        .demo-item {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(5px);
+            border-radius: 15px;
+            padding: 1.5rem;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+
+        .demo-image {
+            width: 100%;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            margin-bottom: 1rem;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .demo-description {
+            font-size: 0.9rem;
+            line-height: 1.5;
+            opacity: 0.9;
+            text-align: left;
+        }
+
         .error-message {
             display: none;
             background: rgba(244, 67, 54, 0.9);
@@ -182,6 +224,14 @@
             
             .card {
                 padding: 2rem 1.5rem;
+            }
+
+            .demo-item {
+                padding: 1rem;
+            }
+
+            .demo-description {
+                font-size: 0.85rem;
             }
         }
     </style>
@@ -233,6 +283,30 @@
             <div class="feature-item">
                 <span class="feature-icon">🎮</span>
                 <span>Game mode to help improve detection</span>
+            </div>
+        </div>
+
+        <div class="demo-section">
+            <div class="demo-title">See it in action</div>
+            <div class="demo-grid">
+                <div class="demo-item">
+                    <img src="images/text-detection.png" alt="Text detection example" class="demo-image">
+                    <div class="demo-description">
+                        Found some AI text on a NYT article and blurred it out. The extension scans paragraphs as you browse and covers up anything that looks machine-written.
+                    </div>
+                </div>
+                <div class="demo-item">
+                    <img src="images/search-modification.png" alt="Search modification example" class="demo-image">
+                    <div class="demo-description">
+                        When you search on Google, it automatically tacks on "-ai" to your query so you don't get those AI overview boxes. You can see it in the search bar.
+                    </div>
+                </div>
+                <div class="demo-item">
+                    <img src="images/image-detection.png" alt="Image detection example" class="demo-image">
+                    <div class="demo-description">
+                        Spots AI images in search results and blurs them. Those little percentage boxes show how confident it is - higher numbers mean it's pretty sure it's AI.
+                    </div>
+                </div>
             </div>
         </div>
     </div>
