@@ -13,9 +13,39 @@ if (typeof clamp === 'undefined') {
 /**
  * Enhanced scoring using ML detector with GPTZero-level features
  * Falls back to statistical features if ML model unavailable
+ * Now uses optimized detector for better speed and accuracy
  */
 async function scoreParagraph(text) {
-  // Try enhanced detector first (GPTZero-level features)
+  // Try optimized detector first (best speed + accuracy)
+  if (typeof window !== 'undefined' && window.closeaiOptimizedDetector && window.closeaiOptimizedDetector.detectAIGeneratedOptimized) {
+    try {
+      // Get base features from standard detector (if available)
+      let baseFeatures = {};
+      if (typeof detectAIGenerated !== 'undefined') {
+        try {
+          const baseResult = await detectAIGenerated(text);
+          if (baseResult && baseResult.features) {
+            baseFeatures = baseResult.features;
+          }
+        } catch (e) {
+          // Continue without base features
+        }
+      }
+      
+      // Use optimized detector (fastest and most accurate)
+      const optimizedResult = await window.closeaiOptimizedDetector.detectAIGeneratedOptimized(text, baseFeatures);
+      if (optimizedResult && optimizedResult.score !== undefined) {
+        return {
+          score: optimizedResult.score,
+          confidence: optimizedResult.confidence || 0.7
+        };
+      }
+    } catch (error) {
+      console.warn("[CloseAI] Optimized detection failed, trying enhanced:", error);
+    }
+  }
+
+  // Fallback to enhanced detector (GPTZero-level features)
   if (typeof window !== 'undefined' && window.closeaiEnhancedDetector && window.closeaiEnhancedDetector.detectAIGeneratedEnhanced) {
     try {
       // Get base features from standard detector

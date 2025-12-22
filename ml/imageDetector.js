@@ -304,8 +304,27 @@ async function analyzeImageFeatures(img) {
         hasMetadata: img.complete && img.naturalWidth > 0
       };
       
-      // Use enhanced features if available (drastically improved detection)
-      if (typeof window !== 'undefined' && window.closeaiEnhancedImageDetector && window.closeaiEnhancedImageDetector.extractEnhancedFeatures) {
+      // Use optimized features first (best speed + accuracy)
+      if (typeof window !== 'undefined' && window.closeaiOptimizedImageDetector && window.closeaiOptimizedImageDetector.extractOptimizedFeatures) {
+        try {
+          const optimizedFeatures = window.closeaiOptimizedImageDetector.extractOptimizedFeatures(imageData, width, height, baseFeatures);
+          resolve(optimizedFeatures);
+        } catch (error) {
+          console.warn("[CloseAI] Optimized feature extraction failed, trying enhanced:", error);
+          // Fallback to enhanced
+          if (typeof window !== 'undefined' && window.closeaiEnhancedImageDetector && window.closeaiEnhancedImageDetector.extractEnhancedFeatures) {
+            try {
+              const enhancedFeatures = window.closeaiEnhancedImageDetector.extractEnhancedFeatures(imageData, width, height, baseFeatures);
+              resolve(enhancedFeatures);
+            } catch (e) {
+              resolve(baseFeatures);
+            }
+          } else {
+            resolve(baseFeatures);
+          }
+        }
+      } else if (typeof window !== 'undefined' && window.closeaiEnhancedImageDetector && window.closeaiEnhancedImageDetector.extractEnhancedFeatures) {
+        // Fallback to enhanced features
         try {
           const enhancedFeatures = window.closeaiEnhancedImageDetector.extractEnhancedFeatures(imageData, width, height, baseFeatures);
           resolve(enhancedFeatures);
@@ -981,8 +1000,31 @@ async function detectAIImage(img) {
       return { score: 0, confidence: 0 };
     }
     
-    // Use enhanced scoring if available (drastically improved)
-    if (typeof window !== 'undefined' && window.closeaiEnhancedImageDetector && window.closeaiEnhancedImageDetector.calculateEnhancedScore) {
+    // Use optimized scoring first (best speed + accuracy)
+    if (typeof window !== 'undefined' && window.closeaiOptimizedImageDetector && window.closeaiOptimizedImageDetector.calculateOptimizedScore) {
+      try {
+        const optimizedResult = window.closeaiOptimizedImageDetector.calculateOptimizedScore(features, metadata);
+        score = optimizedResult.score;
+        confidence = optimizedResult.confidence;
+      } catch (error) {
+        console.warn("[CloseAI] Optimized scoring failed, trying enhanced:", error);
+        // Fallback to enhanced
+        if (typeof window !== 'undefined' && window.closeaiEnhancedImageDetector && window.closeaiEnhancedImageDetector.calculateEnhancedScore) {
+          try {
+            const enhancedResult = window.closeaiEnhancedImageDetector.calculateEnhancedScore(features, metadata);
+            score = enhancedResult.score;
+            confidence = enhancedResult.confidence;
+          } catch (e) {
+            score = calculateBaseScore(features, metadata);
+            confidence = calculateBaseConfidence(features, metadata);
+          }
+        } else {
+          score = calculateBaseScore(features, metadata);
+          confidence = calculateBaseConfidence(features, metadata);
+        }
+      }
+    } else if (typeof window !== 'undefined' && window.closeaiEnhancedImageDetector && window.closeaiEnhancedImageDetector.calculateEnhancedScore) {
+      // Fallback to enhanced scoring
       try {
         const enhancedResult = window.closeaiEnhancedImageDetector.calculateEnhancedScore(features, metadata);
         score = enhancedResult.score;

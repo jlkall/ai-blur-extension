@@ -8,9 +8,35 @@ const outlineModeSwitch = document.getElementById('outlineModeSwitch');
 const outlineModeStatusText = document.getElementById('outlineModeStatusText');
 const certaintySwitch = document.getElementById('certaintySwitch');
 const certaintyStatusText = document.getElementById('certaintyStatusText');
+const nukeModeSwitch = document.getElementById('nukeModeSwitch');
+const nukeModeStatusText = document.getElementById('nukeModeStatusText');
+
+// Load toggle visibility and apply
+function loadToggleVisibility() {
+    chrome.storage.local.get(['toggleVisibility'], (result) => {
+        const visibility = result.toggleVisibility || {};
+        
+        // Find all toggle containers by data attribute
+        const toggleContainers = document.querySelectorAll('.toggle-container[data-toggle-id]');
+        
+        toggleContainers.forEach(container => {
+            const toggleId = container.getAttribute('data-toggle-id');
+            
+            // Only hide if explicitly set to false
+            // If setting doesn't exist (undefined), default to visible (show it)
+            const isVisible = visibility[toggleId] !== false;
+            
+            if (isVisible) {
+                container.style.display = '';
+            } else {
+                container.style.display = 'none';
+            }
+        });
+    });
+}
 
 // Load current state
-chrome.storage.local.get(['enabled', 'gameMode', 'outlineMode', 'showCertainty', 'feedbackData'], (result) => {
+chrome.storage.local.get(['enabled', 'gameMode', 'outlineMode', 'showCertainty', 'nukeMode', 'feedbackData'], (result) => {
     const enabled = result.enabled !== false; // Default to true
     updateToggle(enabled);
     
@@ -23,6 +49,26 @@ chrome.storage.local.get(['enabled', 'gameMode', 'outlineMode', 'showCertainty',
     const showCertainty = result.showCertainty === true;
     updateCertaintyToggle(showCertainty);
     
+    // Only treat nukeMode as true if explicitly set to true
+    // Default to false for safety
+    let nukeMode = (result.nukeMode === true) ? true : false;
+    
+    // SAFETY: If nukeMode is somehow not a boolean, force to false
+    if (nukeMode !== true && nukeMode !== false) {
+        // Invalid nukeMode value, resetting to false
+        nukeMode = false;
+        chrome.storage.local.set({ nukeMode: false });
+    }
+    
+    console.log("[CloseAI Popup] Loading state - nukeMode from storage:", result.nukeMode, "final:", nukeMode);
+    
+    // If nukeMode is true, show a warning in the popup
+    if (nukeMode === true) {
+        // Nuke mode is enabled
+    }
+    
+    updateNukeModeToggle(nukeMode);
+    
     // Set initial disabled state for other toggles
     enableOtherToggles(enabled);
     
@@ -30,7 +76,21 @@ chrome.storage.local.get(['enabled', 'gameMode', 'outlineMode', 'showCertainty',
     if (result.feedbackData) {
         updateStats(result.feedbackData);
     }
+    
+    // Load toggle visibility settings
+    loadToggleVisibility();
 });
+
+// Listen for settings updates from settings page
+if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
+    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+        if (message.action === 'settingsUpdated') {
+            loadToggleVisibility();
+            sendResponse({ success: true });
+        }
+        return true;
+    });
+}
 
 if (toggleSwitch) {
     toggleSwitch.addEventListener('click', () => {
@@ -69,13 +129,14 @@ function updateToggle(enabled) {
 }
 
 function enableOtherToggles(enabled) {
-    if (!gameModeSwitch || !outlineModeSwitch || !certaintySwitch) return;
+    if (!gameModeSwitch || !outlineModeSwitch || !certaintySwitch || !nukeModeSwitch) return;
     
     const gameModeContainer = gameModeSwitch.closest('.toggle-container');
     const outlineModeContainer = outlineModeSwitch.closest('.toggle-container');
     const certaintyContainer = certaintySwitch.closest('.toggle-container');
+    const nukeModeContainer = nukeModeSwitch.closest('.toggle-container');
     
-    if (!gameModeContainer || !outlineModeContainer || !certaintyContainer) return;
+    if (!gameModeContainer || !outlineModeContainer || !certaintyContainer || !nukeModeContainer) return;
     
     if (enabled) {
         gameModeContainer.classList.remove('disabled');
@@ -84,6 +145,8 @@ function enableOtherToggles(enabled) {
         outlineModeSwitch.classList.remove('disabled');
         certaintyContainer.classList.remove('disabled');
         certaintySwitch.classList.remove('disabled');
+        nukeModeContainer.classList.remove('disabled');
+        nukeModeSwitch.classList.remove('disabled');
     } else {
         gameModeContainer.classList.add('disabled');
         gameModeSwitch.classList.add('disabled');
@@ -91,6 +154,8 @@ function enableOtherToggles(enabled) {
         outlineModeSwitch.classList.add('disabled');
         certaintyContainer.classList.add('disabled');
         certaintySwitch.classList.add('disabled');
+        nukeModeContainer.classList.add('disabled');
+        nukeModeSwitch.classList.add('disabled');
     }
 }
 
@@ -275,6 +340,62 @@ function updateCertaintyToggle(enabled) {
     } else {
         certaintySwitch.classList.remove('active');
         certaintyStatusText.textContent = 'Disabled';
+    }
+}
+
+// Nuke Mode toggle
+if (nukeModeSwitch) {
+    nukeModeSwitch.addEventListener('click', () => {
+    // Check if main toggle is enabled
+    chrome.storage.local.get(['enabled'], (result) => {
+        if (result.enabled === false) {
+            return; // Don't allow if main toggle is off
+        }
+        
+        chrome.storage.local.get(['nukeMode'], (result) => {
+            const currentState = result.nukeMode === true;
+            const newState = !currentState;
+            
+            // Explicitly set to boolean false (not undefined) when turning off
+            const valueToSave = newState === true ? true : false;
+            
+            console.log("[CloseAI Popup] Toggling nukeMode - current:", currentState, "new:", newState, "saving:", valueToSave);
+            
+            chrome.storage.local.set({ nukeMode: valueToSave }, () => {
+                updateNukeModeToggle(newState);
+                
+                // Notify content script
+                chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+                    if (tabs[0]) {
+                        chrome.tabs.sendMessage(tabs[0].id, {
+                            action: 'toggleNukeMode',
+                            enabled: newState
+                        }).catch(() => {
+                            // Tab might not have content script loaded yet
+                        });
+                    }
+                });
+                
+                // Reload current tab to apply changes
+                chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+                    if (tabs[0]) {
+                        chrome.tabs.reload(tabs[0].id);
+                    }
+                });
+            });
+        });
+    });
+    });
+}
+
+function updateNukeModeToggle(enabled) {
+    if (!nukeModeSwitch || !nukeModeStatusText) return;
+    if (enabled) {
+        nukeModeSwitch.classList.add('active');
+        nukeModeStatusText.textContent = 'Enabled';
+    } else {
+        nukeModeSwitch.classList.remove('active');
+        nukeModeStatusText.textContent = 'Disabled';
     }
 }
 
