@@ -1,21 +1,72 @@
 console.log("[CloseAI] Enhanced ML detection loaded");
 
-const THRESHOLD = 0.25;
+const THRESHOLD = 0.55; // High threshold to minimize false positives - only flag clearly AI content
 const IMAGE_THRESHOLD = 0.40; // Threshold for AI image detection (with metadata, can be slightly lower)
+
+// Known AI writing service domains - boost detection ONLY for these specific domains
+// Only include domains that are explicitly AI content generators, not general sites
+const AI_WRITING_DOMAINS = [
+  'myessaywriter.ai',
+  'essaywriter.ai',
+  'jenni.ai',
+  'writesonic.com',
+  'copy.ai',
+  'jasper.ai',
+  'rytr.me',
+  'simplified.com'
+];
 const BLUR_PX = 8;
 
 // Extension enabled state (default to true)
 let extensionEnabled = true;
 let outlineMode = false;
 let showCertainty = false;
+let nukeMode = false; // Default to false - only true if explicitly set to true
+
+// Debug function to check current state
+function debugState() {
+  console.log("[CloseAI] Current state - enabled:", extensionEnabled, "nukeMode:", nukeMode, "outlineMode:", outlineMode, "showCertainty:", showCertainty);
+}
 
 // Load enabled state from storage (with defensive check)
 function loadEnabledState() {
   if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-    chrome.storage.local.get(['enabled', 'outlineMode', 'showCertainty'], (result) => {
+    chrome.storage.local.get(['enabled', 'outlineMode', 'showCertainty', 'nukeMode', 'toggleVisibility'], (result) => {
       extensionEnabled = result.enabled !== false; // Default to true
-      outlineMode = result.outlineMode === true;
-      showCertainty = result.showCertainty === true;
+      
+      // Check toggle visibility - if a toggle is hidden, treat it as OFF
+      const visibility = result.toggleVisibility || {};
+      
+      // If outlineMode toggle is hidden, force it to false
+      if (visibility.outlineMode === false) {
+        outlineMode = false;
+      } else {
+        outlineMode = result.outlineMode === true;
+      }
+      
+      // If showCertainty toggle is hidden, force it to false
+      if (visibility.showCertainty === false) {
+        showCertainty = false;
+      } else {
+        showCertainty = result.showCertainty === true;
+      }
+      
+      // If nukeMode toggle is hidden, force it to false
+      if (visibility.nukeMode === false) {
+        nukeMode = false;
+        console.log("[CloseAI] nukeMode toggle is hidden, forcing to false");
+      } else {
+        // Only set nukeMode to true if explicitly set to true in storage
+        // If undefined, null, false, or any other value, set to false
+        nukeMode = (result.nukeMode === true) ? true : false;
+      }
+      console.log("[CloseAI] State loaded (loadEnabledState) - enabled:", extensionEnabled, "nukeMode:", nukeMode, "outlineMode:", outlineMode, "showCertainty:", showCertainty, "storage nukeMode:", result.nukeMode);
+      
+      // Safety check: ensure nukeMode is explicitly false if not true
+      if (nukeMode !== true) {
+        nukeMode = false;
+      }
+      
       if (!extensionEnabled) {
         console.log("[CloseAI] Extension is disabled");
       }
@@ -23,7 +74,7 @@ function loadEnabledState() {
   }
 }
 
-// Load state on initialization
+// Load state on initialization (early load, but initializeExtension will override)
 loadEnabledState();
 
 // Listen for toggle messages from popup
@@ -71,6 +122,29 @@ if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage)
       
       // Update all existing flagged assets
       updateAllCertaintyBlobs();
+      sendResponse({ success: true });
+    } else if (message.action === 'toggleNukeMode') {
+      // Only set to true if explicitly true, otherwise force to false
+      if (message.enabled === true) {
+        nukeMode = true;
+        // Nuke mode toggled via message
+      } else {
+        nukeMode = false;
+        console.log("[CloseAI] Nuke mode DISABLED via message");
+      }
+      
+      // Also update storage to ensure consistency
+      if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+        chrome.storage.local.set({ nukeMode: nukeMode }, () => {
+          console.log("[CloseAI] Storage updated - nukeMode:", nukeMode);
+        });
+      }
+      
+      // Re-scan to apply nuke mode
+      if (extensionEnabled) {
+        scan(document.body);
+        scanImages(document.body);
+      }
       sendResponse({ success: true });
     }
     return true;
@@ -239,6 +313,81 @@ async function scoreTextAsync(text) {
     return { score: typeof cached === 'number' ? cached : 0.5, confidence: null };
   }
   
+  // Try optimized detector first (best accuracy)
+  if (typeof window !== 'undefined' && window.closeaiOptimizedDetector && window.closeaiOptimizedDetector.detectAIGeneratedOptimized) {
+    try {
+      // Get base features from standard detector (if available)
+      let baseFeatures = {};
+      if (typeof detectAIGenerated !== 'undefined') {
+        try {
+          const baseResult = await detectAIGenerated(text);
+          if (baseResult && baseResult.features) {
+            baseFeatures = baseResult.features;
+          }
+        } catch (e) {
+          // Continue without base features
+        }
+      }
+      
+      // Use optimized detector (fastest and most accurate)
+      const optimizedResult = await window.closeaiOptimizedDetector.detectAIGeneratedOptimized(text, baseFeatures);
+      if (optimizedResult && optimizedResult.score !== undefined) {
+        const result = {
+          score: optimizedResult.score,
+          confidence: optimizedResult.confidence || 0.7
+        };
+        
+        // Cache the result
+        if (scoreCache.size >= CACHE_SIZE) {
+          const firstKey = scoreCache.keys().next().value;
+          scoreCache.delete(firstKey);
+        }
+        scoreCache.set(cacheKey, result);
+        
+        return result;
+      }
+    } catch (error) {
+      console.warn("[CloseAI] Optimized detection failed, trying enhanced:", error);
+    }
+  }
+  
+  // Try enhanced detector
+  if (typeof window !== 'undefined' && window.closeaiEnhancedDetector && window.closeaiEnhancedDetector.detectAIGeneratedEnhanced) {
+    try {
+      let baseFeatures = {};
+      if (typeof detectAIGenerated !== 'undefined') {
+        try {
+          const baseResult = await detectAIGenerated(text);
+          if (baseResult && baseResult.features) {
+            baseFeatures = baseResult.features;
+          }
+        } catch (e) {
+          // Continue without base features
+        }
+      }
+      
+      const enhancedResult = await window.closeaiEnhancedDetector.detectAIGeneratedEnhanced(text, baseFeatures);
+      if (enhancedResult && enhancedResult.score !== undefined) {
+        const result = {
+          score: enhancedResult.score,
+          confidence: enhancedResult.confidence || 0.7
+        };
+        
+        // Cache the result
+        if (scoreCache.size >= CACHE_SIZE) {
+          const firstKey = scoreCache.keys().next().value;
+          scoreCache.delete(firstKey);
+        }
+        scoreCache.set(cacheKey, result);
+        
+        return result;
+      }
+    } catch (error) {
+      console.warn("[CloseAI] Enhanced detection failed, trying standard ML:", error);
+    }
+  }
+  
+  // Try standard ML detector
   try {
     if (typeof detectAIGenerated !== 'undefined') {
       const result = await detectAIGenerated(text);
@@ -247,14 +396,16 @@ async function scoreTextAsync(text) {
         const score = result.score;
         const confidence = result.confidence || null;
         
+        const finalResult = { score, confidence };
+        
         // Cache the result
         if (scoreCache.size >= CACHE_SIZE) {
           const firstKey = scoreCache.keys().next().value;
           scoreCache.delete(firstKey);
         }
-        scoreCache.set(cacheKey, { score, confidence });
+        scoreCache.set(cacheKey, finalResult);
         
-        return { score, confidence };
+        return finalResult;
       } else {
         // Fallback for old API
         const score = result || (typeof scoreParagraphSync === 'function' ? scoreParagraphSync(text) : 0.5);
@@ -263,12 +414,22 @@ async function scoreTextAsync(text) {
         return cachedResult;
       }
     }
-    } catch (error) {
-      console.warn("[CloseAI] Async scoring error:", error);
-    }
+  } catch (error) {
+    console.warn("[CloseAI] Async scoring error:", error);
+  }
   
+  // Final fallback to statistical features
   const fallbackScore = typeof scoreParagraphSync === 'function' ? scoreParagraphSync(text) : 0.5;
-  return { score: fallbackScore, confidence: null };
+  const fallbackResult = { score: fallbackScore, confidence: null };
+  
+  // Cache fallback result
+  if (scoreCache.size >= CACHE_SIZE) {
+    const firstKey = scoreCache.keys().next().value;
+    scoreCache.delete(firstKey);
+  }
+  scoreCache.set(cacheKey, fallbackResult);
+  
+  return fallbackResult;
 }
 
 /**
@@ -334,9 +495,42 @@ function blurWithCTA(el, score, confidence = null) {
   if (el.dataset.aiBlur === "true" || el.dataset.aiOutline === "true") return;
   if (!el.innerText || el.innerText.trim().length < 40) return;
 
+  // CRITICAL: Only remove text if nuke mode is EXPLICITLY enabled
+  // Simple, direct check - no async operations that could cause race conditions
+  if (nukeMode === true) {
+    // Nuke mode active - removing element
+    // Only remove if element still exists
+    if (el.parentNode) {
+      el.remove();
+    }
+    return;
+  }
+
+  // GUARANTEE: If nukeMode is NOT true, text will NEVER be removed
+  // DEFAULT BEHAVIOR: When extension is enabled, text should BLUR by default
+  // This function only blurs or outlines - never removes (unless nuke mode is explicitly on)
+
+  // If nukeMode is NOT true, proceed with blur/outline (NEVER remove)
+  // Default action: BLUR the text (unless outline mode is on)
+  performBlur(el, score, confidence);
+}
+
+function performBlur(el, score, confidence = null) {
+  // This function handles blur/outline - NEVER removes text
+  // GUARANTEE: This function will NEVER call el.remove() or permanently delete text
+  // DEFAULT BEHAVIOR: When extension is enabled, text should BLUR (unless outline mode is on)
+
   // Check if outline mode is enabled
   if (outlineMode) {
     outlineWithCTA(el, score, confidence);
+    return;
+  }
+
+  // DEFAULT: Blur the text (this is the default behavior when extension is enabled)
+  // Store original text BEFORE any modifications
+  const originalText = el.innerText || el.textContent || '';
+  if (!originalText || originalText.trim().length === 0) {
+    // No text content to blur, skipping element
     return;
   }
 
@@ -346,9 +540,10 @@ function blurWithCTA(el, score, confidence = null) {
   el.style.zIndex = "1"; // Low z-index for the container
 
   const span = document.createElement("span");
-  span.textContent = el.innerText;
+  span.textContent = originalText; // Use stored original text
   span.dataset.blurred = "true";
 
+  // Apply blur filter (DEFAULT behavior when extension is enabled)
   span.style.filter = "blur(" + BLUR_PX + "px)";
   span.style.cursor = "pointer";
   span.style.transition = "filter 0.15s ease";
@@ -372,6 +567,7 @@ function blurWithCTA(el, score, confidence = null) {
     }
   });
 
+  // Replace innerHTML but preserve text in span (text is NOT removed, just wrapped and blurred)
   el.innerHTML = "";
   el.appendChild(span);
   
@@ -453,6 +649,17 @@ function outlineWithCTA(el, score, confidence = null) {
 function blurImageWithConfidence(img, score, confidence = null) {
   if (img.dataset.aiBlurred === "true" || img.dataset.aiOutline === "true") return;
   if (!img.complete || img.naturalWidth === 0) return;
+  
+  // Nuke mode: remove image completely (only if explicitly enabled)
+  // Check explicitly for true to avoid any truthy issues
+  // ADDITIONAL SAFETY: Double-check nukeMode is actually true before removing
+  if (nukeMode === true) {
+    // Nuke mode active - removing image
+    img.remove();
+    return;
+  }
+  
+  // If nukeMode is not true, proceed with normal blur/outline
   
   // Check if outline mode is enabled
   if (outlineMode) {
@@ -836,6 +1043,14 @@ async function scanImages(root) {
   
   const images = Array.from(root.querySelectorAll("img:not([data-ai-scanned])"));
   
+  // First, check if any were pre-blocked and restore if false positive
+  images.forEach(img => {
+    if (img.dataset.aiBlocked === 'true' && img.dataset.aiPendingCheck === 'true') {
+      // Re-check with full detection
+      img.dataset.aiPendingCheck = 'false';
+    }
+  });
+  
   // Filter and prioritize images
   const candidateImages = images.filter(img => {
     // Skip if image is inside a map container (Google Maps, Apple Maps, etc.)
@@ -895,10 +1110,28 @@ async function scanImages(root) {
             const result = await detectAIImage(img);
         const minConfidence = result?.metadataBased ? 0.4 : 0.5;
         if (result && result.score >= IMAGE_THRESHOLD && result.confidence >= minConfidence) {
-          blurImageWithConfidence(img, result.score, result.confidence);
-          // Log detection to history
-          if (typeof window.closeaiHistory !== 'undefined' && window.closeaiHistory.logDetection) {
-            window.closeaiHistory.logDetection('image', result.score, result.confidence, window.location.href, img.src, true);
+          // If pre-blocked, keep it blocked; otherwise blur
+          if (img.dataset.aiBlocked === 'true') {
+            // Already blocked, just log
+            if (typeof window.closeaiHistory !== 'undefined' && window.closeaiHistory.logDetection) {
+              window.closeaiHistory.logDetection('image', result.score, result.confidence, window.location.href, img.src || img.dataset.originalSrc, true);
+            }
+          } else {
+            blurImageWithConfidence(img, result.score, result.confidence);
+            // Log detection to history
+            if (typeof window.closeaiHistory !== 'undefined' && window.closeaiHistory.logDetection) {
+              window.closeaiHistory.logDetection('image', result.score, result.confidence, window.location.href, img.src, true);
+            }
+          }
+        } else if (img.dataset.aiBlocked === 'true' && img.dataset.aiPendingCheck === 'false') {
+          // False positive - restore the image
+          if (typeof window.closeaiPreRender !== 'undefined' && window.closeaiPreRender.restoreElement) {
+            window.closeaiPreRender.restoreElement(img);
+            // Restore original src if it was blocked
+            if (img.dataset.originalSrc) {
+              img.src = img.dataset.originalSrc;
+              delete img.dataset.originalSrc;
+            }
           }
         }
       } catch (error) {
@@ -919,10 +1152,28 @@ if (typeof detectAIImage !== 'undefined') {
     // Otherwise require both high score AND good confidence
     const minConfidence = result?.metadataBased ? 0.4 : 0.5;
     if (result && result.score >= IMAGE_THRESHOLD && result.confidence >= minConfidence) {
-      blurImageWithConfidence(img, result.score, result.confidence);
-      // Log detection to history
-      if (typeof window.closeaiHistory !== 'undefined' && window.closeaiHistory.logDetection) {
-        window.closeaiHistory.logDetection('image', result.score, result.confidence, window.location.href, img.src, true);
+      // If pre-blocked, keep it blocked; otherwise blur
+      if (img.dataset.aiBlocked === 'true') {
+        // Already blocked, just log
+        if (typeof window.closeaiHistory !== 'undefined' && window.closeaiHistory.logDetection) {
+          window.closeaiHistory.logDetection('image', result.score, result.confidence, window.location.href, img.src || img.dataset.originalSrc, true);
+        }
+      } else {
+        blurImageWithConfidence(img, result.score, result.confidence);
+        // Log detection to history
+        if (typeof window.closeaiHistory !== 'undefined' && window.closeaiHistory.logDetection) {
+          window.closeaiHistory.logDetection('image', result.score, result.confidence, window.location.href, img.src, true);
+        }
+      }
+    } else if (img.dataset.aiBlocked === 'true' && img.dataset.aiPendingCheck === 'false') {
+      // False positive - restore the image
+      if (typeof window.closeaiPreRender !== 'undefined' && window.closeaiPreRender.restoreElement) {
+        window.closeaiPreRender.restoreElement(img);
+        // Restore original src if it was blocked
+        if (img.dataset.originalSrc) {
+          img.src = img.dataset.originalSrc;
+          delete img.dataset.originalSrc;
+        }
       }
     }
       } catch (error) {
@@ -1006,7 +1257,9 @@ async function scan(root) {
   // Check per-site settings - whitelist check happens in scanImages too
   const currentDomain = window.location.hostname.replace(/^www\./, '');
   
-  const elements = root.querySelectorAll("p, li, div[class*='content'], div[class*='text'], article");
+  // More comprehensive element selection for better text detection
+  // Include main content areas, article bodies, and common content containers
+  const elements = root.querySelectorAll("p, li, div[class*='content'], div[class*='text'], article, section, h1, h2, h3, h4, h5, h6, blockquote, span[class*='text'], span[class*='content'], div[class*='article'], div[class*='post'], div[class*='entry'], main p, main div, [role='article'] p, [role='article'] div, .article-body p, .article-body div, .content-body p, .content-body div");
 
   for (const el of elements) {
     if (el.dataset.aiBlur === "true" || el.dataset.aiOutline === "true") continue;
@@ -1018,64 +1271,114 @@ async function scan(root) {
       continue;
     }
 
-    const text = el.innerText;
+    // Get text content - try innerText first, fallback to textContent
+    const text = el.innerText || el.textContent || '';
     if (!text || text.trim().length < 40) continue;
+    
+    // Skip if text is mostly whitespace or special characters
+    const textRatio = text.trim().length / text.length;
+    if (textRatio < 0.5) continue; // Skip if more than 50% whitespace
 
     // Mark as scanned to avoid duplicate processing
     el.dataset.aiScanned = "true";
 
-    // Quick synchronous check first
-    const quickScore = scoreText(text);
+    // Check if we're on a known AI writing service domain (exact match only)
+    const currentDomain = window.location.hostname.replace(/^www\./, '').toLowerCase();
+    const isAIWritingDomain = AI_WRITING_DOMAINS.some(domain => currentDomain === domain || currentDomain.endsWith('.' + domain));
     
-    if (quickScore >= THRESHOLD) {
-      blurWithCTA(el, quickScore, null); // No confidence for sync score
+    // Only slightly lower threshold for AI writing domains (very conservative)
+    const effectiveThreshold = isAIWritingDomain ? THRESHOLD * 0.90 : THRESHOLD; // Only 10% lower for AI domains
+
+    // Quick synchronous check first (for immediate feedback)
+    let quickScore = scoreText(text);
+    
+    // Only boost score if on AI writing domain AND score is already high
+    if (isAIWritingDomain && quickScore > 0.45) {
+      quickScore = Math.min(1, quickScore * 1.10); // Small 10% boost, only for high scores
+    }
+    
+    // If quick score passes threshold, blur immediately
+    if (quickScore >= effectiveThreshold) {
+      blurWithCTA(el, quickScore, null);
       
       // Log quick detection (will be refined later)
       if (typeof window.closeaiHistory !== 'undefined' && window.closeaiHistory.logDetection) {
         window.closeaiHistory.logDetection('text', quickScore, null, window.location.href, text, false);
       }
-      
-      // Then refine with async ML scoring
-      scoreTextAsync(text).then(result => {
+    }
+    
+    // Always run async ML scoring for better accuracy, even if quick score is below threshold
+    // This catches cases where statistical features miss AI text but ML detects it
+    // Capture variables for async callback
+    const capturedEffectiveThreshold = effectiveThreshold;
+    const capturedIsAIWritingDomain = isAIWritingDomain;
+    const capturedText = text;
+    
+    scoreTextAsync(text).then(result => {
         if (result && typeof result === 'object' && result.score !== undefined) {
-          const refinedScore = result.score;
+          let refinedScore = result.score;
           const confidence = result.confidence || null;
           
-          // Update if ML score is significantly different
-          if (Math.abs(refinedScore - quickScore) > 0.15) {
-            if (refinedScore >= THRESHOLD && el.dataset.aiBlur !== "true") {
+          // Only boost score if on AI writing domain AND score is already somewhat high
+          // This prevents false positives on legitimate content
+          if (capturedIsAIWritingDomain && refinedScore > 0.45) {
+            refinedScore = Math.min(1, refinedScore * 1.10); // Small 10% boost, only for high scores
+          }
+          
+          // Always update if ML score is different OR if it's above threshold
+          // This ensures better detection accuracy
+          if (refinedScore >= capturedEffectiveThreshold) {
+            // If ML says it's AI, blur it (even if quick score was lower)
+            if (el.dataset.aiBlur !== "true" && el.dataset.aiOutline !== "true") {
               blurWithCTA(el, refinedScore, confidence);
-              // Log detection to history
-              if (typeof window.closeaiHistory !== 'undefined' && window.closeaiHistory.logDetection) {
-                window.closeaiHistory.logDetection('text', refinedScore, confidence, window.location.href, text, false);
-              }
-            } else if (refinedScore < THRESHOLD && el.dataset.aiBlur === "true") {
-              // Remove blur if ML says it's not AI
-              el.dataset.aiBlur = "false";
-              el.innerHTML = text;
+            } else if (el.dataset.aiBlur === "true") {
+              // Update existing blur with refined score and confidence
+              blurWithCTA(el, refinedScore, confidence);
             }
-          } else if (confidence !== null) {
-            // Log detection to history (even if score didn't change much)
-            if (refinedScore >= THRESHOLD && typeof window.closeaiHistory !== 'undefined' && window.closeaiHistory.logDetection) {
-              window.closeaiHistory.logDetection('text', refinedScore, confidence, window.location.href, text, false);
+            
+            // Log detection to history
+            if (typeof window.closeaiHistory !== 'undefined' && window.closeaiHistory.logDetection) {
+              window.closeaiHistory.logDetection('text', refinedScore, confidence, window.location.href, capturedText, false);
             }
-            // Update confidence badge if score is similar
-            blurWithCTA(el, refinedScore, confidence);
+          } else if (refinedScore < capturedEffectiveThreshold && el.dataset.aiBlur === "true") {
+            // Remove blur if ML says it's not AI (restore original text)
+            el.dataset.aiBlur = "false";
+            // Restore text content safely
+            const span = el.querySelector('span[data-blurred="true"]');
+            if (span && span.textContent) {
+              el.textContent = span.textContent;
+            } else {
+              el.textContent = capturedText;
+            }
+            // Remove blur styling
+            el.style.filter = "none";
+            el.style.position = "";
+            el.style.isolation = "";
+            el.style.zIndex = "";
+          } else if (confidence !== null && refinedScore >= capturedEffectiveThreshold * 0.8) {
+            // Log detection to history even if score is close to threshold
+            if (typeof window.closeaiHistory !== 'undefined' && window.closeaiHistory.logDetection) {
+              window.closeaiHistory.logDetection('text', refinedScore, confidence, window.location.href, capturedText, false);
+            }
           }
         } else {
           // Fallback for old API
-          const refinedScore = result || quickScore;
-          if (Math.abs(refinedScore - quickScore) > 0.15) {
-            if (refinedScore >= THRESHOLD && el.dataset.aiBlur !== "true") {
-              blurWithCTA(el, refinedScore, null);
-            }
+          const refinedScore = typeof result === 'number' ? result : (result?.score || quickScore);
+          if (refinedScore >= capturedEffectiveThreshold && el.dataset.aiBlur !== "true") {
+            blurWithCTA(el, refinedScore, null);
           }
         }
-      }).catch(() => {
-        // Silently fail, already blurred with sync score
+      }).catch((error) => {
+        // Log error but don't spam console
+        if (error && !error.message?.includes('CORS')) {
+          console.warn("[CloseAI] Async scoring error:", error.message);
+        }
+        // If async scoring fails, fall back to quick score
+        if (quickScore >= capturedEffectiveThreshold && el.dataset.aiBlur !== "true") {
+          blurWithCTA(el, quickScore, null);
+        }
       });
     }
-  }
   
   // Also scan images in the same root
   scanImages(root);
@@ -1101,10 +1404,65 @@ const observer = new MutationObserver(function (mutations) {
 // Boot - check enabled state first
 function initializeExtension() {
   if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-    chrome.storage.local.get(['enabled', 'outlineMode', 'showCertainty'], (result) => {
+    chrome.storage.local.get(['enabled', 'outlineMode', 'showCertainty', 'nukeMode', 'gameMode', 'toggleVisibility'], (result) => {
       extensionEnabled = result.enabled !== false; // Default to true
-      outlineMode = result.outlineMode === true;
-      showCertainty = result.showCertainty === true;
+      
+      // Check toggle visibility - if a toggle is hidden, treat it as OFF
+      const visibility = result.toggleVisibility || {};
+      
+      // If outlineMode toggle is hidden, force it to false
+      if (visibility.outlineMode === false) {
+        outlineMode = false;
+        console.log("[CloseAI] outlineMode toggle is hidden, forcing to false");
+      } else {
+        outlineMode = result.outlineMode === true;
+      }
+      
+      // If showCertainty toggle is hidden, force it to false
+      if (visibility.showCertainty === false) {
+        showCertainty = false;
+        console.log("[CloseAI] showCertainty toggle is hidden, forcing to false");
+      } else {
+        showCertainty = result.showCertainty === true;
+      }
+      
+      // If nukeMode toggle is hidden, force it to false
+      const storageNukeMode = result.nukeMode;
+      if (visibility.nukeMode === false) {
+        nukeMode = false;
+        console.log("[CloseAI] nukeMode toggle is hidden, forcing to false (was:", storageNukeMode, ")");
+      } else {
+        // CRITICAL: Only allow nukeMode to be true if explicitly set to true in storage
+        // Default to false for safety
+        if (storageNukeMode === true) {
+          nukeMode = true;
+          // Nuke mode is enabled
+        } else {
+          // Force to false if undefined, null, false, or any other value
+          nukeMode = false;
+          // If storage has a truthy but not explicitly true value, clear it
+          if (storageNukeMode !== undefined && storageNukeMode !== false && storageNukeMode !== true) {
+            // Invalid nukeMode value in storage, clearing
+            chrome.storage.local.set({ nukeMode: false });
+          }
+        }
+      }
+      
+      // FINAL SAFETY CHECK: If nukeMode is somehow still truthy but not explicitly true, force to false
+      if (nukeMode !== true && nukeMode !== false) {
+        console.error("[CloseAI] CRITICAL: nukeMode has invalid value, forcing to false:", nukeMode);
+        nukeMode = false;
+        chrome.storage.local.set({ nukeMode: false });
+      }
+      
+      console.log("[CloseAI] Initialized (initializeExtension) - enabled:", extensionEnabled, "nukeMode:", nukeMode, "outlineMode:", outlineMode, "showCertainty:", showCertainty);
+      console.log("[CloseAI] Storage nukeMode value:", storageNukeMode, "type:", typeof storageNukeMode, "final nukeMode:", nukeMode);
+      
+      // If nukeMode is true, warn the user clearly
+      if (nukeMode === true) {
+        // Nuke mode is active
+      }
+      
       startScanning();
     });
   } else {
@@ -1112,6 +1470,8 @@ function initializeExtension() {
     extensionEnabled = true;
     outlineMode = false;
     showCertainty = false;
+    nukeMode = false; // Explicitly false by default
+    console.log("[CloseAI] Initialized (no storage) - enabled:", extensionEnabled, "nukeMode:", nukeMode);
     startScanning();
   }
 }
@@ -1140,3 +1500,4 @@ observer.observe(document.body, {
 
 // Initialize extension
 initializeExtension();
+
