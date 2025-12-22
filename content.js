@@ -1369,10 +1369,19 @@ async function scan(root) {
           }
         }
       }).catch((error) => {
-        // Log error but don't spam console
-        if (error && !error.message?.includes('CORS')) {
-          console.warn("[CloseAI] Async scoring error:", error.message);
+        // Silently handle expected errors (context invalidation, CORS, etc.)
+        const errorMessage = error?.message || String(error || '');
+        const isExpectedError = 
+          errorMessage.includes('Extension context invalidated') ||
+          errorMessage.includes('CORS') ||
+          errorMessage.includes('context') ||
+          errorMessage.includes('invalidated');
+        
+        // Only log unexpected errors
+        if (error && !isExpectedError) {
+          console.warn("[CloseAI] Async scoring error:", errorMessage);
         }
+        
         // If async scoring fails, fall back to quick score
         if (quickScore >= capturedEffectiveThreshold && el.dataset.aiBlur !== "true") {
           blurWithCTA(el, quickScore, null);
