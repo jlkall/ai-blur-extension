@@ -4,13 +4,6 @@ const THRESHOLD = 0.55; // High threshold to minimize false positives - only fla
 const IMAGE_THRESHOLD = 0.40; // Threshold for AI image detection (with metadata, can be slightly lower)
 
 // Cloud detection settings (opt-in, privacy-preserving)
-// TODO: Update this URL after deploying your Cloudflare Worker
-// Get the URL from: wrangler deploy output or Cloudflare dashboard
-const CLOUD_API_URL = 'https://closeai-detection.workers.dev';
-
-// Cloud detection settings (opt-in, privacy-preserving)
-// TODO: Update this URL after deploying your Cloudflare Worker
-// Get the URL from: wrangler deploy output or Cloudflare dashboard
 const CLOUD_API_URL = 'https://closeai-detection.workers.dev';
 
 // Known AI writing service domains - boost detection ONLY for these specific domains
@@ -1661,12 +1654,12 @@ function initializeExtension() {
 function startScanning() {
   if (extensionEnabled) {
     if (document.body) {
-      scan(document.body);
+scan(document.body);
       scanImages(document.body);
-      observer.observe(document.body, {
-        childList: true,
-        subtree: true
-      });
+observer.observe(document.body, {
+  childList: true,
+  subtree: true
+});
     } else {
       document.addEventListener("DOMContentLoaded", () => {
 scan(document.body);

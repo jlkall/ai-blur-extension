@@ -435,6 +435,17 @@ function updateNukeModeToggle(enabled) {
     }
 }
 
+function updateCloudDetectionToggle(enabled) {
+    if (!cloudDetectionSwitch || !cloudDetectionStatusText) return;
+    if (enabled) {
+        cloudDetectionSwitch.classList.add('active');
+        cloudDetectionStatusText.textContent = 'Enabled';
+    } else {
+        cloudDetectionSwitch.classList.remove('active');
+        cloudDetectionStatusText.textContent = 'Disabled';
+    }
+}
+
 // Refresh stats periodically when game mode is active
 setInterval(() => {
     if (gameModeSwitch && gameModeSwitch.classList.contains('active')) {
