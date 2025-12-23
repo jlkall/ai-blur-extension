@@ -40,6 +40,7 @@
             "gameMode.js",
             "detectionHistory.js",
             "export.js",
+            "analytics.js",
             "content.js"
           ],
       "run_at": "document_start"

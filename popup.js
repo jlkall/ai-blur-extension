@@ -453,6 +453,90 @@ setInterval(() => {
     }
 }, 2000);
 
+// ===== Analytics =====
+const viewAnalyticsButton = document.getElementById('viewAnalyticsButton');
+const clearAnalyticsButton = document.getElementById('clearAnalyticsButton');
+const analyticsDisplay = document.getElementById('analyticsDisplay');
+
+if (viewAnalyticsButton) {
+    viewAnalyticsButton.addEventListener('click', async () => {
+        // Get analytics from content script
+        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+            if (tabs[0]) {
+                chrome.tabs.sendMessage(tabs[0].id, { action: 'getAnalytics' }, (response) => {
+                    if (chrome.runtime.lastError) {
+                        analyticsDisplay.textContent = 'Error: ' + chrome.runtime.lastError.message;
+                        analyticsDisplay.style.display = 'block';
+                        return;
+                    }
+                    if (response && response.analytics) {
+                        displayAnalytics(response.analytics);
+                    } else {
+                        analyticsDisplay.textContent = 'No analytics data yet. Use cloud detection to start tracking.';
+                        analyticsDisplay.style.display = 'block';
+                    }
+                });
+            }
+        });
+    });
+}
+
+if (clearAnalyticsButton) {
+    clearAnalyticsButton.addEventListener('click', () => {
+        if (confirm('Clear all analytics data? This cannot be undone.')) {
+            chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+                if (tabs[0]) {
+                    chrome.tabs.sendMessage(tabs[0].id, { action: 'clearAnalytics' }, () => {
+                        analyticsDisplay.textContent = 'Analytics cleared.';
+                        analyticsDisplay.style.display = 'block';
+                        setTimeout(() => {
+                            analyticsDisplay.style.display = 'none';
+                        }, 2000);
+                    });
+                }
+            });
+        }
+    });
+}
+
+function displayAnalytics(analytics) {
+    if (!analytics) {
+        analyticsDisplay.textContent = 'No analytics data available.';
+        analyticsDisplay.style.display = 'block';
+        return;
+    }
+
+    const html = `
+        <div style="margin-bottom: 12px;">
+            <strong>☁️ Cloud Detection</strong><br>
+            Requests: ${analytics.cloud.totalRequests}<br>
+            Cache Hit Rate: ${analytics.cloud.cacheHitRate}<br>
+            Error Rate: ${analytics.cloud.errorRate}<br>
+            Avg Response: ${analytics.cloud.avgResponseTime}<br>
+            Avg Improvement: ${analytics.cloud.avgScoreImprovement}
+        </div>
+        <div style="margin-bottom: 12px;">
+            <strong>🖥️ Local Detection</strong><br>
+            Total Detections: ${analytics.local.totalDetections}<br>
+            Avg Score: ${analytics.local.avgScore}<br>
+            Avg Confidence: ${analytics.local.avgConfidence}
+        </div>
+        <div style="margin-bottom: 12px;">
+            <strong>🔄 Hybrid Performance</strong><br>
+            Total: ${analytics.hybrid.totalDetections}<br>
+            Cloud Used: ${analytics.hybrid.cloudUsed} (${analytics.hybrid.cloudUsageRate})<br>
+            Local Only: ${analytics.hybrid.localOnly}<br>
+            Avg Score Delta: ${analytics.hybrid.avgScoreDelta}
+        </div>
+        <div style="font-size: 10px; opacity: 0.7;">
+            Running for ${analytics.uptime.days} days (since ${analytics.uptime.startDate})
+        </div>
+    `;
+    
+    analyticsDisplay.innerHTML = html;
+    analyticsDisplay.style.display = 'block';
+}
+
 // ===== Detection History & Export =====
 
 // Load and display detection history stats

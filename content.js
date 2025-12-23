@@ -134,6 +134,22 @@ if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage)
       cloudDetectionEnabled = message.enabled === true;
       console.log("[CloseAI] Cloud detection toggled:", cloudDetectionEnabled ? "enabled" : "disabled");
       sendResponse({ success: true });
+    } else if (message.action === 'getAnalytics') {
+      if (typeof window !== 'undefined' && window.closeaiAnalytics) {
+        window.closeaiAnalytics.getAnalytics().then(analytics => {
+          sendResponse({ analytics: analytics });
+        }).catch(() => {
+          sendResponse({ analytics: null });
+        });
+        return true; // Async response
+      } else {
+        sendResponse({ analytics: null });
+      }
+    } else if (message.action === 'clearAnalytics') {
+      if (typeof window !== 'undefined' && window.closeaiAnalytics) {
+        window.closeaiAnalytics.clearMetrics();
+      }
+      sendResponse({ success: true });
     } else if (message.action === 'toggleNukeMode') {
       // Only set to true if explicitly true, otherwise force to false
       if (message.enabled === true) {
@@ -533,6 +549,9 @@ async function detectWithCloud(text, localResult) {
     return localResult;
   }
   
+  const startTime = performance.now();
+  let cached = false;
+  
   try {
     // Extract features only (no full text)
     const features = extractFeaturesOnly(text);
@@ -559,6 +578,15 @@ async function detectWithCloud(text, localResult) {
     }
     
     const cloudResult = await response.json();
+    const responseTime = performance.now() - startTime;
+    
+    // Check if result was cached (cloud returns cached results)
+    cached = cloudResult.cached === true;
+    
+    // Track cloud request
+    if (typeof window !== 'undefined' && window.closeaiAnalytics) {
+      window.closeaiAnalytics.trackCloudRequest(responseTime, cached, false);
+    }
     
     // Combine local + cloud scores (weighted average)
     if (cloudResult && cloudResult.score !== undefined) {
@@ -567,6 +595,12 @@ async function detectWithCloud(text, localResult) {
         localResult.confidence || 0.5,
         cloudResult.confidence || 0.5
       );
+      
+      // Track score improvement
+      if (typeof window !== 'undefined' && window.closeaiAnalytics) {
+        window.closeaiAnalytics.trackScoreImprovement(localResult.score, cloudResult.score);
+        window.closeaiAnalytics.trackHybridDetection(true, localResult.score, cloudResult.score);
+      }
       
       return {
         score: combinedScore,
@@ -579,6 +613,13 @@ async function detectWithCloud(text, localResult) {
     
     return localResult;
   } catch (error) {
+    const responseTime = performance.now() - startTime;
+    
+    // Track error
+    if (typeof window !== 'undefined' && window.closeaiAnalytics) {
+      window.closeaiAnalytics.trackCloudRequest(responseTime, false, true);
+    }
+    
     // Silently fallback to local if cloud fails
     console.warn("[CloseAI] Cloud detection failed, using local:", error.message);
     return localResult;
@@ -1469,10 +1510,26 @@ async function scan(root) {
     
     // First get local result
     scoreTextAsync(text).then(async localResult => {
+      // Track local detection
+      if (typeof window !== 'undefined' && window.closeaiAnalytics && localResult) {
+        window.closeaiAnalytics.trackLocalDetection(localResult.score, localResult.confidence);
+      }
+      
       // If cloud is enabled and confidence is low, try cloud detection
       let result = localResult;
+      let usedCloud = false;
       if (cloudDetectionEnabled && localResult.confidence < 0.75) {
         result = await detectWithCloud(text, localResult);
+        usedCloud = result.source === 'hybrid';
+      }
+      
+      // Track hybrid detection
+      if (typeof window !== 'undefined' && window.closeaiAnalytics) {
+        window.closeaiAnalytics.trackHybridDetection(
+          usedCloud,
+          localResult.score,
+          usedCloud ? result.cloudScore : undefined
+        );
       }
       
       // Continue with result (now potentially enhanced by cloud)
