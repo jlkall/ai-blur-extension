@@ -10,6 +10,8 @@ const certaintySwitch = document.getElementById('certaintySwitch');
 const certaintyStatusText = document.getElementById('certaintyStatusText');
 const nukeModeSwitch = document.getElementById('nukeModeSwitch');
 const nukeModeStatusText = document.getElementById('nukeModeStatusText');
+const cloudDetectionSwitch = document.getElementById('cloudDetectionSwitch');
+const cloudDetectionStatusText = document.getElementById('cloudDetectionStatusText');
 
 // Load toggle visibility and apply
 function loadToggleVisibility() {
@@ -36,7 +38,7 @@ function loadToggleVisibility() {
 }
 
 // Load current state
-chrome.storage.local.get(['enabled', 'gameMode', 'outlineMode', 'showCertainty', 'nukeMode', 'feedbackData'], (result) => {
+chrome.storage.local.get(['enabled', 'gameMode', 'outlineMode', 'showCertainty', 'nukeMode', 'cloudDetection', 'feedbackData'], (result) => {
     const enabled = result.enabled !== false; // Default to true
     updateToggle(enabled);
     
@@ -68,6 +70,9 @@ chrome.storage.local.get(['enabled', 'gameMode', 'outlineMode', 'showCertainty',
     }
     
     updateNukeModeToggle(nukeMode);
+    
+    const cloudDetection = result.cloudDetection === true;
+    updateCloudDetectionToggle(cloudDetection);
     
     // Set initial disabled state for other toggles
     enableOtherToggles(enabled);
@@ -129,12 +134,13 @@ function updateToggle(enabled) {
 }
 
 function enableOtherToggles(enabled) {
-    if (!gameModeSwitch || !outlineModeSwitch || !certaintySwitch || !nukeModeSwitch) return;
+    if (!gameModeSwitch || !outlineModeSwitch || !certaintySwitch || !nukeModeSwitch || !cloudDetectionSwitch) return;
     
     const gameModeContainer = gameModeSwitch.closest('.toggle-container');
     const outlineModeContainer = outlineModeSwitch.closest('.toggle-container');
     const certaintyContainer = certaintySwitch.closest('.toggle-container');
     const nukeModeContainer = nukeModeSwitch.closest('.toggle-container');
+    const cloudDetectionContainer = cloudDetectionSwitch.closest('.toggle-container');
     
     if (!gameModeContainer || !outlineModeContainer || !certaintyContainer || !nukeModeContainer) return;
     
@@ -147,6 +153,8 @@ function enableOtherToggles(enabled) {
         certaintySwitch.classList.remove('disabled');
         nukeModeContainer.classList.remove('disabled');
         nukeModeSwitch.classList.remove('disabled');
+        cloudDetectionContainer.classList.remove('disabled');
+        cloudDetectionSwitch.classList.remove('disabled');
     } else {
         gameModeContainer.classList.add('disabled');
         gameModeSwitch.classList.add('disabled');
@@ -156,6 +164,8 @@ function enableOtherToggles(enabled) {
         certaintySwitch.classList.add('disabled');
         nukeModeContainer.classList.add('disabled');
         nukeModeSwitch.classList.add('disabled');
+        cloudDetectionContainer.classList.add('disabled');
+        cloudDetectionSwitch.classList.add('disabled');
     }
 }
 
@@ -341,6 +351,32 @@ function updateCertaintyToggle(enabled) {
         certaintySwitch.classList.remove('active');
         certaintyStatusText.textContent = 'Disabled';
     }
+}
+
+// Cloud Detection toggle
+if (cloudDetectionSwitch) {
+    cloudDetectionSwitch.addEventListener('click', () => {
+        if (!cloudDetectionSwitch || cloudDetectionSwitch.classList.contains('disabled')) return;
+        
+        const isActive = cloudDetectionSwitch.classList.contains('active');
+        const newState = !isActive;
+        
+        chrome.storage.local.set({ cloudDetection: newState }, () => {
+            updateCloudDetectionToggle(newState);
+            
+            // Notify content script
+            chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+                if (tabs[0]) {
+                    chrome.tabs.sendMessage(tabs[0].id, {
+                        action: 'toggleCloudDetection',
+                        enabled: newState
+                    }).catch(() => {
+                        // Tab might not have content script loaded yet
+                    });
+                }
+            });
+        });
+    });
 }
 
 // Nuke Mode toggle

@@ -3,6 +3,16 @@ console.log("[CloseAI] Enhanced ML detection loaded");
 const THRESHOLD = 0.55; // High threshold to minimize false positives - only flag clearly AI content
 const IMAGE_THRESHOLD = 0.40; // Threshold for AI image detection (with metadata, can be slightly lower)
 
+// Cloud detection settings (opt-in, privacy-preserving)
+// TODO: Update this URL after deploying your Cloudflare Worker
+// Get the URL from: wrangler deploy output or Cloudflare dashboard
+const CLOUD_API_URL = 'https://closeai-detection.workers.dev';
+
+// Cloud detection settings (opt-in, privacy-preserving)
+// TODO: Update this URL after deploying your Cloudflare Worker
+// Get the URL from: wrangler deploy output or Cloudflare dashboard
+const CLOUD_API_URL = 'https://closeai-detection.workers.dev';
+
 // Known AI writing service domains - boost detection ONLY for these specific domains
 // Only include domains that are explicitly AI content generators, not general sites
 const AI_WRITING_DOMAINS = [
@@ -22,6 +32,7 @@ let extensionEnabled = true;
 let outlineMode = false;
 let showCertainty = false;
 let nukeMode = false; // Default to false - only true if explicitly set to true
+let cloudDetectionEnabled = false; // Cloud detection (opt-in, privacy-preserving)
 
 // Debug function to check current state
 function debugState() {
@@ -31,7 +42,7 @@ function debugState() {
 // Load enabled state from storage (with defensive check)
 function loadEnabledState() {
   if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-    chrome.storage.local.get(['enabled', 'outlineMode', 'showCertainty', 'nukeMode', 'toggleVisibility'], (result) => {
+    chrome.storage.local.get(['enabled', 'outlineMode', 'showCertainty', 'nukeMode', 'toggleVisibility', 'cloudDetection'], (result) => {
       extensionEnabled = result.enabled !== false; // Default to true
       
       // Check toggle visibility - if a toggle is hidden, treat it as OFF
@@ -60,7 +71,10 @@ function loadEnabledState() {
         // If undefined, null, false, or any other value, set to false
         nukeMode = (result.nukeMode === true) ? true : false;
       }
-      console.log("[CloseAI] State loaded (loadEnabledState) - enabled:", extensionEnabled, "nukeMode:", nukeMode, "outlineMode:", outlineMode, "showCertainty:", showCertainty, "storage nukeMode:", result.nukeMode);
+      // Load cloud detection preference
+      cloudDetectionEnabled = result.cloudDetection === true;
+      
+      console.log("[CloseAI] State loaded (loadEnabledState) - enabled:", extensionEnabled, "nukeMode:", nukeMode, "outlineMode:", outlineMode, "showCertainty:", showCertainty, "cloudDetection:", cloudDetectionEnabled, "storage nukeMode:", result.nukeMode);
       
       // Safety check: ensure nukeMode is explicitly false if not true
       if (nukeMode !== true) {
@@ -122,6 +136,10 @@ if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage)
       
       // Update all existing flagged assets
       updateAllCertaintyBlobs();
+      sendResponse({ success: true });
+    } else if (message.action === 'toggleCloudDetection') {
+      cloudDetectionEnabled = message.enabled === true;
+      console.log("[CloseAI] Cloud detection toggled:", cloudDetectionEnabled ? "enabled" : "disabled");
       sendResponse({ success: true });
     } else if (message.action === 'toggleNukeMode') {
       // Only set to true if explicitly true, otherwise force to false
@@ -430,6 +448,148 @@ async function scoreTextAsync(text) {
   scoreCache.set(cacheKey, fallbackResult);
   
   return fallbackResult;
+}
+
+/**
+ * Extract features from text (privacy-preserving - no full text sent)
+ */
+function extractFeaturesOnly(text) {
+  const words = text.trim().split(/\s+/);
+  const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
+  
+  // Calculate entropy
+  const freq = {};
+  for (const c of text) freq[c] = (freq[c] || 0) + 1;
+  const len = text.length;
+  let entropy = 0;
+  for (const c in freq) {
+    const p = freq[c] / len;
+    entropy -= p * Math.log2(p);
+  }
+  
+  // Calculate word diversity
+  const uniqueWords = new Set(words.map(w => w.toLowerCase()));
+  const wordDiversity = uniqueWords.size / words.length;
+  
+  // Calculate sentence variance
+  const sentenceLengths = sentences.map(s => s.split(/\s+/).length);
+  const mean = sentenceLengths.length > 0 ? sentenceLengths.reduce((a, b) => a + b, 0) / sentenceLengths.length : 0;
+  const variance = sentenceLengths.length > 0 ? sentenceLengths.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / sentenceLengths.length : 0;
+  
+  // Stopword density
+  const STOPWORDS = new Set(['the', 'is', 'at', 'which', 'on', 'and', 'a', 'an', 'to', 'of', 'in', 'for', 'with']);
+  const stopwordCount = words.filter(w => STOPWORDS.has(w.toLowerCase())).length;
+  const stopwordDensity = words.length > 0 ? stopwordCount / words.length : 0;
+  
+  // Punctuation density
+  const punctCount = (text.match(/[.,!?;:]/g) || []).length;
+  const punctuationDensity = text.length > 0 ? punctCount / text.length : 0;
+  
+  // Word entropy
+  const wordFreq = {};
+  words.forEach(w => {
+    const lower = w.toLowerCase();
+    wordFreq[lower] = (wordFreq[lower] || 0) + 1;
+  });
+  let wordEntropy = 0;
+  if (words.length > 0) {
+    for (const w in wordFreq) {
+      const p = wordFreq[w] / words.length;
+      wordEntropy -= p * Math.log2(p);
+    }
+  }
+  
+  // Repetition (n-gram)
+  const trigrams = [];
+  for (let i = 0; i < words.length - 2; i++) {
+    trigrams.push(words.slice(i, i + 3).join(' ').toLowerCase());
+  }
+  const uniqueTrigrams = new Set(trigrams);
+  const repetition = trigrams.length > 0 ? 1 - (uniqueTrigrams.size / trigrams.length) : 0;
+  
+  return {
+    entropy: entropy,
+    avgSentenceLength: mean,
+    wordDiversity: wordDiversity,
+    punctuationDensity: punctuationDensity,
+    stopwordDensity: stopwordDensity,
+    sentenceVariance: variance,
+    repetition: repetition,
+    wordEntropy: wordEntropy
+  };
+}
+
+/**
+ * Hash text for caching (simple hash function)
+ */
+function hashText(text) {
+  let hash = 0;
+  const len = Math.min(text.length, 200); // Only hash first 200 chars
+  for (let i = 0; i < len; i++) {
+    hash = ((hash << 5) - hash) + text.charCodeAt(i);
+    hash = hash & hash;
+  }
+  return Math.abs(hash).toString(36);
+}
+
+/**
+ * Detect AI using cloud API (privacy-preserving)
+ */
+async function detectWithCloud(text, localResult) {
+  if (!cloudDetectionEnabled || !CLOUD_API_URL || CLOUD_API_URL.includes('YOUR-SUBDOMAIN')) {
+    return localResult;
+  }
+  
+  try {
+    // Extract features only (no full text)
+    const features = extractFeaturesOnly(text);
+    const hash = hashText(text);
+    
+    // Send to cloud API
+    const response = await fetch(CLOUD_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        hash: hash,
+        features: features,
+        metadata: {
+          length: text.length,
+          language: 'en' // Could detect language if needed
+        }
+      })
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Cloud API error: ${response.status}`);
+    }
+    
+    const cloudResult = await response.json();
+    
+    // Combine local + cloud scores (weighted average)
+    if (cloudResult && cloudResult.score !== undefined) {
+      const combinedScore = (localResult.score * 0.4) + (cloudResult.score * 0.6);
+      const combinedConfidence = Math.max(
+        localResult.confidence || 0.5,
+        cloudResult.confidence || 0.5
+      );
+      
+      return {
+        score: combinedScore,
+        confidence: combinedConfidence,
+        source: 'hybrid',
+        localScore: localResult.score,
+        cloudScore: cloudResult.score
+      };
+    }
+    
+    return localResult;
+  } catch (error) {
+    // Silently fallback to local if cloud fails
+    console.warn("[CloseAI] Cloud detection failed, using local:", error.message);
+    return localResult;
+  }
 }
 
 /**
@@ -1314,7 +1474,17 @@ async function scan(root) {
     const capturedIsAIWritingDomain = isAIWritingDomain;
     const capturedText = text;
     
-    scoreTextAsync(text).then(result => {
+    // First get local result
+    scoreTextAsync(text).then(async localResult => {
+      // If cloud is enabled and confidence is low, try cloud detection
+      let result = localResult;
+      if (cloudDetectionEnabled && localResult.confidence < 0.75) {
+        result = await detectWithCloud(text, localResult);
+      }
+      
+      // Continue with result (now potentially enhanced by cloud)
+      return result;
+    }).then(result => {
         if (result && typeof result === 'object' && result.score !== undefined) {
           let refinedScore = result.score;
           const confidence = result.confidence || null;
@@ -1464,7 +1634,10 @@ function initializeExtension() {
         chrome.storage.local.set({ nukeMode: false });
       }
       
-      console.log("[CloseAI] Initialized (initializeExtension) - enabled:", extensionEnabled, "nukeMode:", nukeMode, "outlineMode:", outlineMode, "showCertainty:", showCertainty);
+      // Load cloud detection preference
+      cloudDetectionEnabled = result.cloudDetection === true;
+      
+      console.log("[CloseAI] Initialized (initializeExtension) - enabled:", extensionEnabled, "nukeMode:", nukeMode, "outlineMode:", outlineMode, "showCertainty:", showCertainty, "cloudDetection:", cloudDetectionEnabled);
       console.log("[CloseAI] Storage nukeMode value:", storageNukeMode, "type:", typeof storageNukeMode, "final nukeMode:", nukeMode);
       
       // If nukeMode is true, warn the user clearly

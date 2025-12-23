@@ -341,18 +341,31 @@
             </div>
         </div>
 
-        <div class="toggle-container" data-toggle-id="nukeMode">
-            <div>
-                <div class="toggle-label">
-                    <span class="icon">💥</span>
-                    Nuke Mode
+            <div class="toggle-container" data-toggle-id="nukeMode">
+                <div>
+                    <div class="toggle-label">
+                        <span class="icon">💥</span>
+                        Nuke Mode
+                    </div>
+                    <div class="status-text" id="nukeModeStatusText">Disabled</div>
                 </div>
-                <div class="status-text" id="nukeModeStatusText">Disabled</div>
+                <div class="toggle-switch" id="nukeModeSwitch">
+                    <div class="toggle-slider"></div>
+                </div>
             </div>
-            <div class="toggle-switch" id="nukeModeSwitch">
-                <div class="toggle-slider"></div>
+
+            <div class="toggle-container" data-toggle-id="cloudDetection">
+                <div>
+                    <div class="toggle-label">
+                        <span class="icon">☁️</span>
+                        Cloud Detection
+                    </div>
+                    <div class="status-text" id="cloudDetectionStatusText">Disabled</div>
+                </div>
+                <div class="toggle-switch" id="cloudDetectionSwitch">
+                    <div class="toggle-slider"></div>
+                </div>
             </div>
-        </div>
 
         <div class="stats-container" id="statsContainer">
             <div class="stats-title">📊 Your Stats</div>
