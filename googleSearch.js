@@ -93,7 +93,7 @@
     }
   }
 
-  // Modify URL to append -ai
+  // Modify URL to append -ai and IMMEDIATELY reload
   function appendMinusAI() {
     if (!isGoogleSearch() || isProcessing || !extensionEnabled) return;
 
@@ -105,7 +105,7 @@
     // Check if -ai is already appended
     const queryLower = query.toLowerCase().trim();
     if (queryLower.endsWith(' -ai') || queryLower.endsWith('-ai')) {
-      return; // Already has -ai
+      return; // Already has -ai, no need to reload
     }
     
     isProcessing = true;
@@ -113,58 +113,91 @@
     const newQuery = query.trim() + ' -ai';
     params.set('q', newQuery);
     
-    // Update URL and reload to get new results without AI overview
+    // Build new URL
     const newUrl = window.location.pathname + '?' + params.toString() + (window.location.hash || '');
     
-    // Reload with new query to prevent AI overview
+    // IMMEDIATE RELOAD with -ai appended (simple and reliable)
     if (window.location.href !== newUrl) {
       window.location.href = newUrl;
     }
-    setTimeout(() => { isProcessing = false; }, 100);
   }
 
-  // Intercept form submissions
+  // Intercept form submissions - MAGICALLY add -ai without user seeing it
   function interceptSearchForm() {
     if (!isGoogleSearch()) return;
 
-    const searchForm = document.querySelector('form[action="/search"]') || 
-                       document.querySelector('form[role="search"]') ||
-                       document.querySelector('form');
-    
-    if (!searchForm) return;
+    // Find all possible search forms
+    const searchForms = [
+      document.querySelector('form[action="/search"]'),
+      document.querySelector('form[role="search"]'),
+      document.querySelector('form'),
+      ...document.querySelectorAll('form')
+    ].filter(Boolean);
 
-    searchForm.addEventListener('submit', function(e) {
-      if (!extensionEnabled) {
-        // If disabled, remove -ai from input if present
+    if (searchForms.length === 0) return;
+
+    // Intercept ALL search forms
+    searchForms.forEach(searchForm => {
+      // Intercept submit event - modify query BEFORE form submits
+      searchForm.addEventListener('submit', function(e) {
+        if (!extensionEnabled) {
+          // If disabled, remove -ai from input if present
+          const searchInput = searchForm.querySelector('input[name="q"]') ||
+                              searchForm.querySelector('input[type="text"]') ||
+                              searchForm.querySelector('textarea[name="q"]') ||
+                              searchForm.querySelector('input[aria-label*="Search"]') ||
+                              searchForm.querySelector('textarea[aria-label*="Search"]');
+          
+          if (searchInput) {
+            let query = searchInput.value.trim();
+            const queryLower = query.toLowerCase();
+            if (queryLower.endsWith(' -ai')) {
+              searchInput.value = query.slice(0, -4);
+            } else if (queryLower.endsWith('-ai')) {
+              searchInput.value = query.slice(0, -3);
+            }
+          }
+          return; // Don't modify if disabled
+        }
+
         const searchInput = searchForm.querySelector('input[name="q"]') ||
                             searchForm.querySelector('input[type="text"]') ||
-                            searchForm.querySelector('textarea[name="q"]');
+                            searchForm.querySelector('textarea[name="q"]') ||
+                            searchForm.querySelector('input[aria-label*="Search"]') ||
+                            searchForm.querySelector('textarea[aria-label*="Search"]');
         
         if (searchInput) {
           let query = searchInput.value.trim();
-          const queryLower = query.toLowerCase();
-          if (queryLower.endsWith(' -ai')) {
-            searchInput.value = query.slice(0, -4);
-          } else if (queryLower.endsWith('-ai')) {
-            searchInput.value = query.slice(0, -3);
+          
+          // MAGICALLY append -ai if not already present (user won't see it in input)
+          if (query && !query.toLowerCase().endsWith(' -ai') && !query.toLowerCase().endsWith('-ai')) {
+            // Modify the value directly - this happens right before submit
+            searchInput.value = query + ' -ai';
+            // Also update the form data if it exists
+            if (searchForm.querySelector('input[type="hidden"][name="q"]')) {
+              searchForm.querySelector('input[type="hidden"][name="q"]').value = query + ' -ai';
+            }
           }
         }
-        return; // Don't modify if disabled
-      }
+      }, true); // Use capture phase to intercept early
 
-      const searchInput = searchForm.querySelector('input[name="q"]') ||
-                          searchForm.querySelector('input[type="text"]') ||
-                          searchForm.querySelector('textarea[name="q"]');
-      
-      if (searchInput) {
-        let query = searchInput.value.trim();
-        
-        // Append -ai if not already present
-        if (query && !query.toLowerCase().endsWith(' -ai') && !query.toLowerCase().endsWith('-ai')) {
-          searchInput.value = query + ' -ai';
-        }
-      }
-    }, true); // Use capture phase to intercept early
+      // Also intercept Enter key presses in search inputs
+      const searchInputs = searchForm.querySelectorAll('input[name="q"], input[type="text"], textarea[name="q"], input[aria-label*="Search"], textarea[aria-label*="Search"]');
+      searchInputs.forEach(input => {
+        input.addEventListener('keydown', function(e) {
+          if (e.key === 'Enter' && extensionEnabled) {
+            let query = this.value.trim();
+            // MAGICALLY append -ai right before Enter submits
+            if (query && !query.toLowerCase().endsWith(' -ai') && !query.toLowerCase().endsWith('-ai')) {
+              // Use setTimeout to modify after current event cycle
+              setTimeout(() => {
+                this.value = query + ' -ai';
+              }, 0);
+            }
+          }
+        }, true);
+      });
+    });
   }
 
   // Handle URL changes (for SPA navigation)

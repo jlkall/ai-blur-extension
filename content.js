@@ -27,6 +27,11 @@ let showCertainty = false;
 let nukeMode = false; // Default to false - only true if explicitly set to true
 let cloudDetectionEnabled = false; // Cloud detection (opt-in, privacy-preserving)
 
+// Banner tracking for AI content percentage
+let totalContentElements = 0;
+let aiContentElements = 0;
+let bannerElement = null;
+
 // Debug function to check current state
 function debugState() {
   console.log("[CloseAI] Current state - enabled:", extensionEnabled, "nukeMode:", nukeMode, "outlineMode:", outlineMode, "showCertainty:", showCertainty);
@@ -37,6 +42,8 @@ function loadEnabledState() {
   if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
     chrome.storage.local.get(['enabled', 'outlineMode', 'showCertainty', 'nukeMode', 'toggleVisibility', 'cloudDetection'], (result) => {
       extensionEnabled = result.enabled !== false; // Default to true
+      
+      // Google AI Overview is now handled by appending -ai and reloading (in googleSearch.js)
       
       // Check toggle visibility - if a toggle is hidden, treat it as OFF
       const visibility = result.toggleVisibility || {};
@@ -105,8 +112,12 @@ if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage)
         // Remove all blur effects when disabled
         removeAllBlurs();
         removeAllOutlines();
+        hideBanner();
       } else {
         // Re-scan when re-enabled
+        totalContentElements = 0;
+        aiContentElements = 0;
+        createBanner();
         scan(document.body);
         scanImages(document.body);
       }
@@ -713,6 +724,7 @@ function performBlur(el, score, confidence = null) {
   // This function handles blur/outline - NEVER removes text
   // GUARANTEE: This function will NEVER call el.remove() or permanently delete text
   // DEFAULT BEHAVIOR: When extension is enabled, text should BLUR (unless outline mode is on)
+  // TEXT REMAINS FULLY INTERACTIVE - can be selected, copied, clicked, etc.
 
   // Check if outline mode is enabled
   if (outlineMode) {
@@ -728,42 +740,43 @@ function performBlur(el, score, confidence = null) {
     return;
   }
 
+  // CRITICAL: Only apply blur styling - DO NOT remove or replace text content
+  // This ensures text remains fully interactive (selectable, copyable, etc.)
   el.dataset.aiBlur = "true";
   el.style.position = "relative";
   el.style.isolation = "isolate"; // Create new stacking context
   el.style.zIndex = "1"; // Low z-index for the container
 
-  const span = document.createElement("span");
-  span.textContent = originalText; // Use stored original text
-  span.dataset.blurred = "true";
-
-  // Apply blur filter (DEFAULT behavior when extension is enabled)
-  span.style.filter = "blur(" + BLUR_PX + "px)";
-  span.style.cursor = "pointer";
-  span.style.transition = "filter 0.15s ease";
-  span.style.position = "relative";
-  span.style.zIndex = "1";
+  // Apply blur filter directly to the element - text remains in DOM
+  // This preserves all interactivity (selection, copying, etc.)
+  const originalFilter = el.style.filter || "";
+  el.style.filter = "blur(" + BLUR_PX + "px)";
+  el.style.cursor = "pointer";
+  el.style.transition = "filter 0.15s ease";
+  
+  // Store original filter for toggle
+  el.dataset.originalFilter = originalFilter;
+  el.dataset.blurred = "true";
 
   // Only show badges if certainty toggle is ON
   if (showCertainty) {
     addCertaintyBlob(el, score, confidence);
   }
 
-  // Toggle blur on text click
-  span.addEventListener("click", function () {
-    const isBlurred = span.dataset.blurred === "true";
-    if (isBlurred) {
-      span.style.filter = "none";
-      span.dataset.blurred = "false";
-    } else {
-      span.style.filter = "blur(" + BLUR_PX + "px)";
-      span.dataset.blurred = "true";
+  // Toggle blur on element click - text remains fully interactive
+  el.addEventListener("click", function blurToggleHandler(e) {
+    // Only toggle if clicking directly on the element (not on badges/buttons)
+    if (e.target === el || e.target.parentElement === el) {
+      const isBlurred = el.dataset.blurred === "true";
+      if (isBlurred) {
+        el.style.filter = el.dataset.originalFilter || "none";
+        el.dataset.blurred = "false";
+      } else {
+        el.style.filter = "blur(" + BLUR_PX + "px)";
+        el.dataset.blurred = "true";
+      }
     }
-  });
-
-  // Replace innerHTML but preserve text in span (text is NOT removed, just wrapped and blurred)
-  el.innerHTML = "";
-  el.appendChild(span);
+  }, { once: false });
   
   // Add feedback buttons if game mode is enabled
   if (typeof addFeedbackButtons !== 'undefined') {
@@ -844,11 +857,19 @@ function blurImageWithConfidence(img, score, confidence = null) {
   if (img.dataset.aiBlurred === "true" || img.dataset.aiOutline === "true") return;
   if (!img.complete || img.naturalWidth === 0) return;
   
+  // Images are already counted in scanImages() - don't double count
+  
   // Nuke mode: remove image completely (only if explicitly enabled)
   // Check explicitly for true to avoid any truthy issues
   // ADDITIONAL SAFETY: Double-check nukeMode is actually true before removing
   if (nukeMode === true) {
     // Nuke mode active - removing image
+    // Only count if not already counted
+    if (img.dataset.aiCounted !== "true") {
+      img.dataset.aiCounted = "true";
+      aiContentElements++;
+      updateBanner();
+    }
     img.remove();
     return;
   }
@@ -862,6 +883,12 @@ function blurImageWithConfidence(img, score, confidence = null) {
   }
   
   img.dataset.aiBlurred = "true";
+  // Only count if not already counted
+  if (img.dataset.aiCounted !== "true") {
+    img.dataset.aiCounted = "true";
+    aiContentElements++;
+    updateBanner();
+  }
   
   // Store score and confidence on image for later updates
   img.dataset.aiScore = score;
@@ -1245,7 +1272,7 @@ async function scanImages(root) {
     }
   });
   
-  // Filter and prioritize images
+  // Filter images that will be scanned (count these for percentage)
   const candidateImages = images.filter(img => {
     // Skip if image is inside a map container (Google Maps, Apple Maps, etc.)
     if (isInMapContainer(img)) {
@@ -1274,6 +1301,14 @@ async function scanImages(root) {
     // Skip if already processed
     if (img.dataset.aiReplaced === "true") return false;
     
+    return true;
+  });
+  
+  // Count candidate images as total content (for percentage calculation)
+  totalContentElements += candidateImages.length;
+  
+  // Further filter for prioritization (but all candidates are counted)
+  const prioritizedImages = candidateImages.filter(img => {
     // Prioritize images with certain aspect ratios (typical for AI art)
     const aspectRatio = img.width / img.height;
     // Square-ish or portrait images are more likely to be AI art
@@ -1286,8 +1321,10 @@ async function scanImages(root) {
   });
   
   // Process images with a delay to avoid blocking
-  for (let i = 0; i < candidateImages.length; i++) {
-    const img = candidateImages[i];
+  // Process all candidate images (prioritized ones first, then others)
+  const allImagesToProcess = [...prioritizedImages, ...candidateImages.filter(img => !prioritizedImages.includes(img))];
+  for (let i = 0; i < allImagesToProcess.length; i++) {
+    const img = allImagesToProcess[i];
     
     // Add small delay between processing to avoid blocking UI
     if (i > 0 && i % 5 === 0) {
@@ -1446,13 +1483,17 @@ function removeAllOutlines() {
  * Enhanced scanning with async ML scoring
  */
 async function scan(root) {
-  if (!extensionEnabled) return;
+  if (!extensionEnabled) {
+    hideBanner();
+    return;
+  }
   
   // Check per-site settings - whitelist check happens in scanImages too
   const currentDomain = window.location.hostname.replace(/^www\./, '');
   
   // More comprehensive element selection for better text detection
   // Include main content areas, article bodies, and common content containers
+  // NOTE: Google AI Overview is handled by appending -ai and reloading (in googleSearch.js)
   const elements = root.querySelectorAll("p, li, div[class*='content'], div[class*='text'], article, section, h1, h2, h3, h4, h5, h6, blockquote, span[class*='text'], span[class*='content'], div[class*='article'], div[class*='post'], div[class*='entry'], main p, main div, [role='article'] p, [role='article'] div, .article-body p, .article-body div, .content-body p, .content-body div");
 
   for (const el of elements) {
@@ -1465,6 +1506,9 @@ async function scan(root) {
       continue;
     }
 
+    // Google search results use normal ML detection
+    // AI Overview is prevented by appending -ai to queries (handled in googleSearch.js)
+
     // Get text content - try innerText first, fallback to textContent
     const text = el.innerText || el.textContent || '';
     if (!text || text.trim().length < 40) continue;
@@ -1473,6 +1517,9 @@ async function scan(root) {
     const textRatio = text.trim().length / text.length;
     if (textRatio < 0.5) continue; // Skip if more than 50% whitespace
 
+    // Count this element as scanned content (for percentage calculation)
+    totalContentElements++;
+    
     // Mark as scanned to avoid duplicate processing
     el.dataset.aiScanned = "true";
 
@@ -1480,20 +1527,31 @@ async function scan(root) {
     const currentDomain = window.location.hostname.replace(/^www\./, '').toLowerCase();
     const isAIWritingDomain = AI_WRITING_DOMAINS.some(domain => currentDomain === domain || currentDomain.endsWith('.' + domain));
     
-    // Only slightly lower threshold for AI writing domains (very conservative)
-    const effectiveThreshold = isAIWritingDomain ? THRESHOLD * 0.90 : THRESHOLD; // Only 10% lower for AI domains
+    // For AI writing domains, use much lower threshold (these sites are mostly AI content)
+    const effectiveThreshold = isAIWritingDomain ? THRESHOLD * 0.50 : THRESHOLD; // 50% lower threshold for AI domains (0.275)
 
     // Quick synchronous check first (for immediate feedback)
     let quickScore = scoreText(text);
     
-    // Only boost score if on AI writing domain AND score is already high
-    if (isAIWritingDomain && quickScore > 0.45) {
-      quickScore = Math.min(1, quickScore * 1.10); // Small 10% boost, only for high scores
+    // Boost score more aggressively on AI writing domains
+    if (isAIWritingDomain) {
+      // Boost score significantly for AI writing domains
+      if (quickScore > 0.25) {
+        quickScore = Math.min(1, quickScore * 1.30); // 30% boost for moderate scores
+      } else if (quickScore > 0.15) {
+        quickScore = Math.min(1, quickScore * 1.50); // 50% boost for lower scores
+      }
     }
     
     // If quick score passes threshold, blur immediately
     if (quickScore >= effectiveThreshold) {
-      blurWithCTA(el, quickScore, null);
+      if (el.dataset.aiBlur !== "true" && el.dataset.aiOutline !== "true") {
+        blurWithCTA(el, quickScore, null);
+        // Mark as counted to avoid double-counting
+        el.dataset.aiCounted = "true";
+        aiContentElements++;
+        updateBanner();
+      }
       
       // Log quick detection (will be refined later)
       if (typeof window.closeaiHistory !== 'undefined' && window.closeaiHistory.logDetection) {
@@ -1539,10 +1597,14 @@ async function scan(root) {
           let refinedScore = result.score;
           const confidence = result.confidence || null;
           
-          // Only boost score if on AI writing domain AND score is already somewhat high
-          // This prevents false positives on legitimate content
-          if (capturedIsAIWritingDomain && refinedScore > 0.45) {
-            refinedScore = Math.min(1, refinedScore * 1.10); // Small 10% boost, only for high scores
+          // Boost score more aggressively on AI writing domains
+          if (capturedIsAIWritingDomain) {
+            if (refinedScore > 0.25) {
+              refinedScore = Math.min(1, refinedScore * 1.30); // 30% boost for moderate scores
+            } else if (refinedScore > 0.15) {
+              refinedScore = Math.min(1, refinedScore * 1.50); // 50% boost for lower scores
+            }
+            // Only count as AI if it passes the threshold (already counted above if it does)
           }
           
           // Always update if ML score is different OR if it's above threshold
@@ -1551,6 +1613,12 @@ async function scan(root) {
             // If ML says it's AI, blur it (even if quick score was lower)
             if (el.dataset.aiBlur !== "true" && el.dataset.aiOutline !== "true") {
               blurWithCTA(el, refinedScore, confidence);
+              // Only count if not already counted by quick score
+              if (el.dataset.aiCounted !== "true") {
+                el.dataset.aiCounted = "true";
+                aiContentElements++;
+                updateBanner();
+              }
             } else if (el.dataset.aiBlur === "true") {
               // Update existing blur with refined score and confidence
               blurWithCTA(el, refinedScore, confidence);
@@ -1611,18 +1679,102 @@ async function scan(root) {
   
   // Also scan images in the same root
   scanImages(root);
+  
+  // Update banner after scanning
+  updateBanner();
+}
+
+/**
+ * Create and update minimalist banner showing AI content percentage
+ */
+function createBanner() {
+  if (bannerElement) return; // Already exists
+  if (!document.body) {
+    // Wait for body to be available
+    setTimeout(createBanner, 100);
+    return;
+  }
+  
+  bannerElement = document.createElement('div');
+  bannerElement.id = 'closeai-banner';
+  bannerElement.style.cssText = `
+    position: fixed;
+    bottom: 12px;
+    right: 12px;
+    background: rgba(0, 0, 0, 0.75);
+    color: #fff;
+    padding: 6px 12px;
+    font-size: 11px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    border-radius: 6px;
+    z-index: 999999;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    pointer-events: auto;
+    max-width: 250px;
+  `;
+  
+  document.body.appendChild(bannerElement);
+  updateBanner();
+}
+
+function updateBanner() {
+  if (!extensionEnabled) {
+    hideBanner();
+    return;
+  }
+  
+  if (!bannerElement) {
+    createBanner();
+  }
+  
+  if (totalContentElements === 0) {
+    bannerElement.textContent = 'Scanning...';
+    return;
+  }
+  
+  // Simple calculation: detected AI / total content
+  // Only show percentage if we have valid data
+  if (aiContentElements > totalContentElements) {
+    // Something went wrong with counting - reset
+    console.warn("[CloseAI] Counting error detected, resetting counters");
+    totalContentElements = 0;
+    aiContentElements = 0;
+    bannerElement.textContent = 'Scanning...';
+    return;
+  }
+  
+  const percentage = Math.min(100, Math.round((aiContentElements / totalContentElements) * 100));
+  bannerElement.textContent = `${percentage}% AI content`;
+}
+
+function hideBanner() {
+  if (bannerElement) {
+    bannerElement.style.display = 'none';
+  }
+}
+
+function showBanner() {
+  if (bannerElement) {
+    bannerElement.style.display = 'block';
+  } else if (extensionEnabled) {
+    createBanner();
+  }
 }
 
 // Observe SPA / hydration
+// Google AI Overview detection removed - we now just append -ai and reload
+// This is simpler and more reliable than trying to detect and blur dynamically
+
 const observer = new MutationObserver(function (mutations) {
   if (!extensionEnabled) return;
   
   for (const m of mutations) {
     for (const n of m.addedNodes) {
       if (n.nodeType === Node.ELEMENT_NODE) {
-        // Debounce scanning
+        // Debounce scanning for content
         setTimeout(() => {
-        scan(n);
+          scan(n);
           scanImages(n);
         }, 100);
       }
@@ -1635,6 +1787,8 @@ function initializeExtension() {
   if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
     chrome.storage.local.get(['enabled', 'outlineMode', 'showCertainty', 'nukeMode', 'gameMode', 'toggleVisibility'], (result) => {
       extensionEnabled = result.enabled !== false; // Default to true
+      
+      // Google AI Overview is now handled by appending -ai and reloading (in googleSearch.js)
       
       // Check toggle visibility - if a toggle is hidden, treat it as OFF
       const visibility = result.toggleVisibility || {};
@@ -1709,24 +1863,32 @@ function initializeExtension() {
 }
 
 function startScanning() {
+  // Reset counters for new page
+  totalContentElements = 0;
+  aiContentElements = 0;
+  
   if (extensionEnabled) {
+    createBanner();
     if (document.body) {
-scan(document.body);
+      scan(document.body);
       scanImages(document.body);
-observer.observe(document.body, {
-  childList: true,
-  subtree: true
-});
+      observer.observe(document.body, {
+        childList: true,
+        subtree: true
+      });
     } else {
       document.addEventListener("DOMContentLoaded", () => {
-scan(document.body);
+        createBanner();
+        scan(document.body);
         scanImages(document.body);
-observer.observe(document.body, {
-  childList: true,
-  subtree: true
-});
+        observer.observe(document.body, {
+          childList: true,
+          subtree: true
+        });
       });
     }
+  } else {
+    hideBanner();
   }
 }
 

@@ -59,3 +59,5 @@ CloseAI complies with:
 - No user data is used for purposes unrelated to the extension's single purpose
 - No user data is used for creditworthiness or lending purposes
 
+
+
